@@ -18,6 +18,7 @@ class DEFAULT:
     n_best         = 5
     sort_by        = "score"
     no_comp        = False
+    reverse        = False
     max_slurm_jobs = 500
 
 
@@ -37,6 +38,9 @@ if __name__ == "__main__":
     parser.add_argument('-nc', '--no_comp', action = 'store_true',
         help = 'Skip completion check (Default: %s)' % (DEFAULT.no_comp),
         default = DEFAULT.no_comp)
+    parser.add_argument('-r', '--reverse', action = 'store_true',
+        help = 'Show the structures with HIGHEST energy (Default: %s)' % \
+            (DEFAULT.reverse), default = DEFAULT.reverse)
     
     args = parser.parse_args()
 
@@ -153,7 +157,8 @@ if __name__ == "__main__":
 
         # Sort the energies based on the defined args.sort_by. This argument
         # should be either "score" or "interface"
-        energies = sorted(energies, key=lambda entry: entry[args.sort_by])
+        energies = sorted(energies, key=lambda entry: entry[args.sort_by],
+            reverse = args.reverse)
         # Print only the args.n_best entries.
         for entry in energies[0:args.n_best]:
             print("%10d | %10d | %10d | %12.3f | %12.3f" % \
