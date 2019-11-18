@@ -28,10 +28,16 @@ def get_number_of_jobs_in_slurm_queue(user):
     return number_of_jobs_in_slurm_queue
 
 
-def progress_bar(current, maximum, length):
+def progress_bar(current, maximum, length, fill = "#", empty = "-"):
+    """
+    Prints a progress bar of 'length' characters, which corresponds to the
+    'maximum' value, with the 'fill' character repeated until the 'current'
+    value. the remaining empty part of the bar is occupied by repeated 'empty'
+    characters.
+    """
 
     import math
 
     x = math.floor((current * length) / maximum)
     y = length - x
-    return "[" + "#"*x + "-"*y + "]"
+    return "[" + fill*x + empty*y + "]"
