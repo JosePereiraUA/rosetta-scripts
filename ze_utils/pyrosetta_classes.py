@@ -393,11 +393,13 @@ class DockingGrid:
     extent in the x axis, respectively, starting from the 'center'. The number
     of points between this minimum and maximum positions are defined in the
     'repeats' parameters ('x_repeats', 'y_repeats'and 'z_repeats'), one number
-    for each axis.
+    for each axis. Additionally, if 'use_init_pos' is set to True, the original
+    position is added to the grid points and defined as point 0 (True by
+    default).
     """
 
     def __init__(self, center = [0, 0, 0], xd=(0, 0), yd=(0, 0), zd=(0, 0),
-        x_repeats = 0, y_repeats = 0, z_repeats = 0):
+        x_repeats = 0, y_repeats = 0, z_repeats = 0, use_init_pos = True):
 
         self.center     = center
         self.xt         = (xd[0] + xd[1]) / x_repeats
@@ -410,7 +412,11 @@ class DockingGrid:
         self.y_repeats  = y_repeats
         self.z_repeats  = z_repeats
 
-        self.points     = []
+        if use_init_pos:
+            self.points = [center]
+        else:
+            self.points = []
+            
         self.generate_grid_positions()
 
 
