@@ -17,12 +17,12 @@ def multi_align(elem):
     Read all PDB files in the current directory and perform RMSD analysis.
     Print the RMSD pairs in descending order (Highest RMSD value first).
     """
-    files = [f for f in os.listdir('.') if (os.path.isfile(f) and f[-4:] == ".pdb")]
-    structures = [align.Molecule(f) for f in files]
+    s = [f for f in os.listdir('.') if (os.path.isfile(f) and f[-4:] == ".pdb")]
+    structures = [align.Molecule(f) for f in s]
     results = []
-    for i in range(len(files) - 1):
+    for i in range(len(s) - 1):
         str_i = structures[i]
-        for j in range(i+1, len(files)):
+        for j in range(i+1, len(s)):
             str_j = structures[j]
             rms = str_i.align(str_j, elem, verbose = False)
             results.append((str_i.name, str_j.name, rms))
