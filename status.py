@@ -65,6 +65,7 @@ if __name__ == "__main__":
             decoys      = list(range(data[1]))
             max_steps   = data[2]
             total_steps = data[2] * data[1] # Total # of steps among all decoys
+            init_energy = float(init_conf.readline())
 
         if not args.no_comp:
             # Print COMPLETION STATUS header
@@ -145,6 +146,7 @@ if __name__ == "__main__":
         # When information regarding the whole simulation is gathered, print the
         # energy results. Print the energy results header.
         print("\n%sBest %d structures found" % (" "*24, args.n_best))
+        print("\n Initial conformation total score: %16.3f" % (init_energy))
         print("\n%10s | %10s | %10s | %12s | %12s" % \
             ("Dock #", "Decoy #", "Step #", "Total", "Interface"))
         print(" %s" % ("-"*65))
@@ -154,7 +156,7 @@ if __name__ == "__main__":
         energies = sorted(energies, key=lambda entry: entry[args.sort_by])
         # Print only the args.n_best entries.
         for entry in energies[0:args.n_best]:
-            print("%10d | %10d | %10d | %12s | %12s" % \
+            print("%10d | %10d | %10d | %12.3f | %12.3f" % \
                 (entry["dock"],
                 entry["decoy"],
                 entry["step"],

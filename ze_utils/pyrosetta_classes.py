@@ -400,12 +400,12 @@ class DockingGrid:
         x_repeats = 0, y_repeats = 0, z_repeats = 0):
 
         self.center     = center
-        self.xt        = (xd[0] + xd[1]) / x_repeats
-        self.yt        = (yd[0] + yd[1]) / y_repeats
-        self.zt        = (zd[0] + zd[1]) / z_repeats
-        self.xd        = xd
-        self.yd        = yd
-        self.zd        = zd
+        self.xt         = (xd[0] + xd[1]) / x_repeats
+        self.yt         = (yd[0] + yd[1]) / y_repeats
+        self.zt         = (zd[0] + zd[1]) / z_repeats
+        self.xd         = xd
+        self.yd         = yd
+        self.zd         = zd
         self.x_repeats  = x_repeats
         self.y_repeats  = y_repeats
         self.z_repeats  = z_repeats

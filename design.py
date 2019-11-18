@@ -18,6 +18,8 @@ import os
 # ______________________________________________________________________________
 #  Perform a sequence design by mutating the nature of the aminoacids in the
 # structure. PyRosetta does this by changing the sidechain and its rotamers.
+# The design effort will be localized in the surrounding aminoacids of a ligand
+# peptide, defined as the chain B of the input PDB structure.
 #
 #  Necessary parts:
 # - Starting Pose;
@@ -151,7 +153,7 @@ if __name__ == "__main__":
         help='Export input details (Default: %s)' % (DEFAULT.export_input),
         default = DEFAULT.export_input)
     parser.add_argument("-d", "--dry", action='store_true',
-        help="Don't actually run the simulation, just export potential input")
+        help="Don't actually run the simulation, just export the input")
 
     args = parser.parse_args()
     validate_arguments(args)

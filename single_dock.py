@@ -19,7 +19,7 @@ class DEFAULT:
     """
     Define defaults for the script. Values can be modified using arguments.
     """
-    
+
     n_decoys       = 100
     n_steps        = 2000
     max_slurm_jobs = 499
@@ -86,7 +86,8 @@ def deploy_decoys_on_slurm(input_file, output_prefix, n_decoys, n_steps):
                 os.system("sbatch %s" % ("%s.sh" % (output_name)))
                 break
 
-def deploy_decoys_on_pyjobdistributor(input_file, output_prefix, n_decoys, n_steps, score_function):
+def deploy_decoys_on_pyjobdistributor(input_file, output_prefix, n_decoys,
+    n_steps, score_function):
     """
     Launch the PASSO protocol decoys in serial mode, using the PyJobDistributor.
     Each decoy will occupy one processor on the machine, and a new decoy will be

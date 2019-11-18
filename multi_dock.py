@@ -114,9 +114,10 @@ if __name__ == "__main__":
     dg = DockingGrid(grid_center, (-2, 40), (0, 4), (14, 30), 2, 2, 2)
 
     # Print to a configuration file the initial conditions of the simulation
-    # (number of docks, decoys and steps)
+    # (number of docks, decoys and steps) and initial total score of the pose
     with open("init.conf", "w") as conf:
-        conf.write("%d %d %d" % (len(dg.points), args.n_decoys, args.n_steps))
+        conf.write("%d %d %d\n" % (len(dg.points), args.n_decoys, args.n_steps))
+        conf.write("%f" % (score_function(pose)))
     
     # Orient the grid. In this case, the grid's X [1, 0, 0] axis should match
     # the orientation of the length of the ligand (this is the DE vector, where

@@ -14,7 +14,7 @@ from pyrosetta.rosetta.core.simple_metrics.metrics import \
 # ______________________________________________________________________________
 #  Analizes a single PDB file and outputs revelant intra-pose metrics:
 #    . Total energy
-#    . individual residues energy per selection
+#    . Individual residues energy per selection
 #    . Interaction energy metric (If a ligand is present)
 #    . Solvent Acessible Surface Area (SASA) Metric
 #    . Hydrogen bonding network energy

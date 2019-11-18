@@ -20,15 +20,26 @@ from ze_utils.pyrosetta_classes import PASSO
 #  - Chain C: (Movable) Movable part of the protein, which will be subject to
 # the pseudo docking process (random movement + design);
 #  This model can be set-up using the 'ze_utils.molecule_manipulation' module,
+# by manually setting the chains between a range of consecutive residues
 # as follows:
 #
-# pdb = Molecule("clamshell_relax.pdb")       # Load structure
-# pdb.set_chain_from_range('A', 376, 473)     # Set Chain A
-# pdb.set_chain_from_range('B',   1,   7)     # Set Chain B
-# pdb.set_chain_from_range('C', 483, 572)     # Set Chain C
-# pdb.remove_residues_in_range(474, 482)      # Remove atoms in the loop region
-# pdb.sort_residues_by_chain()                # (Optional) Renumber all residues
-# pdb.print_structure("clamshell_3p_rlx.pdb") # Save edited structure
+# pdb = Molecule("input.pdb")             # Load structure
+# pdb.set_chain_from_range('A', 376, 473) # Set Chain A
+# pdb.set_chain_from_range('B',   1,   7) # Set Chain B
+# pdb.set_chain_from_range('C', 483, 572) # Set Chain C
+# pdb.remove_residues_in_range(474, 482)  # Remove atoms in the loop region
+# pdb.sort_residues_by_chain()            # (Optional) Renumber all residues
+# pdb.print_structure("output.pdb")       # Save edited structure
+#
+# Or by automatically identifying chains from the connection graphs, as long as
+# the chains are deterministically separated in the CONECT records of the input
+# PDB file:
+#
+# pdb = Molecule("3ch8_rlx.pdb")            # Load structure
+# pdb.define_chains_from_connections("ACB") # Automatically identify chains
+# pdb.sort_residues_by_chain()              # (Optional) Renumber all residues
+# pdb.remove_residues_in_range(90, 108)     # Remove atoms in the loop region
+# pdb.print_structure("3ch8_3p_rlx.pdb")    # Save edited structure
 #
 # THIS SCRIPT PERFORMS ONLY ONE DECOY ON THE PASSO PROTOCOL.
 #  > Check single_dock.py script for multiple decoy PASSO simulation
@@ -56,6 +67,7 @@ def validate_arguments(args):
 
 def single_dock_decoy(input_file, output_prefix, n_steps):
     """
+    Launch a new PASSO protocol.
     """
 
     # Load the pose and the score function
