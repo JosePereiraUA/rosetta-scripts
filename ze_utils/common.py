@@ -41,3 +41,39 @@ def progress_bar(current, maximum, length, fill = "#", empty = "-"):
     x = math.floor((current * length) / maximum)
     y = length - x
     return "[" + fill*x + empty*y + "]"
+
+
+#     BLOSUM62
+#
+# The following functions aims to facilitate the calculation of BLOSUM62 scores
+# between 2 aminoacid sequences. 
+
+from os.path import expanduser as expusr
+
+def read_matrix_from_txt_file(f = expusr("~/Desktop/scripts/static/b62.txt")):
+    """
+    Read a BLOSUM62 matrix from a TXT file. Since this file requires a specific
+    format, the usage of the matrix on the default location is encourgaed. 
+    Returns both the loaded matrix and the list of its entries.
+    """
+
+    matrix = []
+    with open(f, "r") as b62:
+        entries = b62.readline().split()
+        for line in b62:
+            matrix.append([int(value) for value in line.split()[1:]])
+    return matrix, entries
+
+
+def blosum62(matrix, entries, query, reference):
+    """
+    Use a matrix (and its entries) to calculate the BLOSUM62 score between a
+    query and reference structure. Returns the total score and the score per
+    residue on a list.
+    """
+
+    per_residue_score = []
+    for q, r in zip(query, reference):
+        residue_score = matrix[entries.index(q)][entries.index(r)]
+        per_residue_score.append(residue_score)
+    return sum(per_residue_score), per_residue_score
