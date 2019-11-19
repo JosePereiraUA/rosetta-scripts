@@ -7,7 +7,8 @@ from ze_utils.molecule_manipulation import *
 #                            Align Script:
 # ______________________________________________________________________________
 #  Align 2 PDB structures (optionally using a subset of atoms selected) and
-# export the resulting aligned input structure to a new file.
+# export the resulting aligned input structure to a new file. This script
+# supports .PDB, .GRO and .XYZ files, both for input and output.
 #
 # Based on the following script:
 # https://github.com/biopython/biopython/blob/master/Bio/SVDSuperimposer/
@@ -18,7 +19,8 @@ from ze_utils.molecule_manipulation import *
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""Align 2 structures.
-        Export the result to a file.""")
+        Export the result to a file. This script supports .PDB, .GRO and .XYZ
+        files, both for input and output.""")
     parser.add_argument('-m', required=True, type=str,
         help='Structure that will suffer the rotation and be outputed',
         metavar='MOVABLE')
