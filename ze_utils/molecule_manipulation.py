@@ -36,7 +36,7 @@ class Molecule:
 
         self.load(filename)
         
-        
+
     def __str__(self):
         return self.as_pdb()
         
@@ -80,9 +80,9 @@ class Molecule:
                     self.atoms.append(Atom(int(ls[1]), elem, ls[3],
                         int(ls[5]), ls[4], float(ls[6]), float(ls[7]),
                         float(ls[8]), float(ls[9]), float(ls[10])))
-                    if ls[3] != current_residue:
-                        current_residue = ls[3]
-                        self.sequence += d321[current_residue]
+                    if int(ls[5]) != current_residue:
+                        current_residue = int(ls[5])
+                        self.sequence += d321[ls[3]]
                     
                 if line[0:6] == "CONECT":
                     ls = line.split()
@@ -254,7 +254,48 @@ class Molecule:
             n_chains += 1
         return n_chains
     
-    
+
+    # --- BLOSUM62 ---
+    def blosum62(self, reference):
+        """
+        Return the BLOSUM62 score between this molecule and a reference
+        Molecule object.
+        """
+
+        from ze_utils.common import read_matrix_from_txt_file, blosum62
+
+        assert len(self.sequence) > 0, \
+            "The molecule doesn't seem to have a sequence: try loading from PDB"
+        assert len(self.sequence) == len(reference.sequence), \
+            "This molecule and the reference's sequence must be of same length"
+
+        # Read the BLOSUM62 matrix from the default location
+        matrix, entries = read_matrix_from_txt_file()
+
+        # Calculate the BLOSUM62 score between the this molecule and reference
+        # sequences
+        return blosum62(matrix, entries, self.sequence, reference.sequence)[0]
+
+
+    def conserved(self, reference):
+        """
+        Return the percentage of conserved sequence between this molecule and a
+        reference Molecule object.
+        """
+
+        assert len(self.sequence) > 0, \
+            "The molecule doesn't seem to have a sequence: try loading from PDB"
+        assert len(self.sequence) == len(reference.sequence), \
+            "This molecule and the reference's sequence must be of same length"
+
+        conserved = 0
+        for index, query_aminoacid in enumerate(self.sequence):
+            if query_aminoacid == reference.sequence[index]:
+                conserved += 1
+
+        return (conserved / len(self.sequence)) * 100
+
+
     # --- ALIGN ---
     def count(self, elem = None):
         """
