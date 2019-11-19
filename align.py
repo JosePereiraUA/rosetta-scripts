@@ -1,10 +1,5 @@
-import sys
 import argparse
-import time
-
-# -*- coding: utf-8 -*-
-# From: https://github.com/biopython/biopython/blob/master/Bio/SVDSuperimposer/__init__.py
-# From: https://github.com/biopython/biopython/blob/master/Bio/PDB/Superimposer.py
+from ze_utils.molecule_manipulation import *
 
 #           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
 
@@ -13,14 +8,13 @@ import time
 # ______________________________________________________________________________
 #  Align 2 PDB structures (optionally using a subset of atoms selected) and
 # export the resulting aligned input structure to a new file.
+#
+# Based on the following script:
+# https://github.com/biopython/biopython/blob/master/Bio/SVDSuperimposer/
+#
+# > Check multi_align.py to align more than 2 structures in 1 on 1 combinations
+# between multiple files in a single folder
 
-from ze_utils.molecule_manipulation import *
-
-def main(args):
-    prediction = Molecule(args.m)
-    reference = Molecule(args.r)
-    prediction.align(reference, args.f)
-    prediction.print_structure(args.o)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""Align 2 structures.
@@ -37,4 +31,7 @@ if __name__ == '__main__':
         help='Filter alignment by atom element. (Optional)', metavar='ELEM')
     args = parser.parse_args()
 
-    sys.exit(main(args))
+    prediction = Molecule(args.m)
+    reference = Molecule(args.r)
+    prediction.align(reference, args.f)
+    prediction.print_structure(args.o)

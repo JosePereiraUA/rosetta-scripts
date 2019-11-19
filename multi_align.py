@@ -10,6 +10,8 @@ import argparse
 #  Align all PDB structures in a directory (optionally using a subset of atoms
 # selected) and export the resulting aligned RMSD values. This script outputs
 # all combinations possible between the files.
+#
+# > Check align.py script to align 2 single structures among themselves.
 
 
 def multi_align(elem):
