@@ -16,6 +16,13 @@
 
 import numpy as np
 
+# d321 dictionary converts 3 letter aminoacid representation to 1 letter
+d321 = {"CYS": "C", "ASP": "D", "SER": "S", "GLN": "Q", "LYS": "K",
+        "ILE": "I", "PRO": "P", "THR": "T", "PHE": "F", "ASN": "N",
+        "GLY": "G", "HIS": "H", "LEU": "L", "ARG": "R", "TRP": "W",
+        "ALA": "A", "VAL": "V", "GLU": "E", "TYR": "Y", "MET": "M"}
+
+
 class Molecule:
     """
     Holds all information and functions regarding a molecule and
@@ -25,8 +32,13 @@ class Molecule:
         self.name = filename[:-4]
         self.atoms = []
         self.conects = []
+        self.sequence = ""
+
         self.load(filename)
         
+        
+    def __str__(self):
+        return self.as_pdb()
         
     # --- LOAD ---
     def load(self, filename):
@@ -45,12 +57,14 @@ class Molecule:
             print("File format unkown")
             exit(0)
             
+
     def read_pdb(self, filename):
         """
         Fill self.atoms and self.conects information by parsing
         a PDB format file.
         """
 
+        current_residue = "X"
         with open(filename, "r") as pdb:
             for line in pdb:
                 
@@ -66,18 +80,24 @@ class Molecule:
                     self.atoms.append(Atom(int(ls[1]), elem, ls[3],
                         int(ls[5]), ls[4], float(ls[6]), float(ls[7]),
                         float(ls[8]), float(ls[9]), float(ls[10])))
+                    if ls[3] != current_residue:
+                        current_residue = ls[3]
+                        self.sequence += d321[current_residue]
                     
                 if line[0:6] == "CONECT":
                     ls = line.split()
                     self.conects.append(Conect(int(ls[1]),
                         [int(x) for x in ls[2:]]))
 
+
     def read_gro(self, filename):
         """
         Fill self.atoms and self.conects information by parsing
         a GRO format file.
+        Cannot infer atom connections.
         """
 
+        current_residue = "X"
         with open(filename, "r") as gro:
             for line in gro:
                 ls = line.split()
@@ -86,11 +106,17 @@ class Molecule:
                     self.atoms.append(Atom(int(ls[2]), ls[1],
                         ls[0][-3:], int(ls[0][0:-3]), "A", float(ls[3])*10.0,
                         float(ls[4])*10.0, float(ls[5])*10.0, -1.0, -1.0))
+                    if ls[0][-3:] != current_residue:
+                        current_residue = ls[0][-3:]
+                        self.sequence += d321[current_residue]
                         
+
     def read_xyz(self, filename, unit="ang"):
         """
         Fill self.atoms and self.conects information by parsing
         a XYZ format file.
+        Cannot infer sequence.
+        Cannot infer atom connections.
         """
 
         index = 1
@@ -103,18 +129,38 @@ class Molecule:
                     float(ls[1]), float(ls[2]), float(ls[3]), 0.0, 0.0))
                     index += 1
     
+
     # --- GENERAL MANIPULATION ---
     def set_chain_from_range(self, chain_name, range_start, range_end):
         """
+        Iterate over all atoms and change the atom.chain_name to match the
+        given 'chain_name' parameter, if the atom.res_index is between the given
+        'range_start' and 'range_end' (both aprameter should be integers).
         """
+
+        assert type(range_start) == int, \
+            "Range start should be an integer."
+        assert type(range_end) == int, \
+            "Range end should be an integer."
+        assert type(chain_name) == str and len(chain_name) == 1, \
+            "Chain name should be a 1 character string. (Ex: 'A')"
 
         for atom in self.atoms:
             if atom.res_index >= range_start and atom.res_index <= range_end:
                 atom.chain_name = chain_name
 
+
     def remove_residues_in_range(self, range_start, range_end):
         """
+        Iterate over all atoms in the molecule. Remove atoms whose res_index is
+        on the range defined between 'range_start' and 'range_end' (both 
+        parameters should be integers).
         """
+
+        assert type(range_start) == int, \
+            "Range start should be an integer."
+        assert type(range_end) == int, \
+            "Range end should be an integer."
 
         to_remove = []
         for (index, atom) in enumerate(self.atoms):
@@ -124,9 +170,15 @@ class Molecule:
         for index in to_remove:
             del self.atoms[index]
 
+
     def renumber_residues(self, start = 1):
         """
+        Renumber residues in molecule based on the current order, stating the
+        count on integer 'start'.
         """
+
+        assert type(start) == int, \
+            "Starting value for renumbering must be an integer."
 
         residue_index = start - 1
         current_residue = None
@@ -136,29 +188,55 @@ class Molecule:
                 residue_index += 1
             atom.res_index = residue_index
 
+
     def sort_residues_by_chain(self, renumber_residues = True):
         """
+        Iterate over the different chain on the molecule in alphabetical order.
+        Sort residues based on chain ID name (example, all residues from chain A
+        appear first than all residues of chain B). Optionally (set to True by
+        default), renumber all residues so each atom res_index matches their
+        position on the sequence.
         """
+
+        assert type(renumber_residues) == bool, \
+            "'renumber_residues' parameter should be a boolean (True/False)"
 
         # 1. Get list of unique chains
         chains = []
         for atom in self.atoms:
             if atom.chain_name not in chains: chains.append(atom.chain_name)
+
         # 2. Sort chain lists
         chains = sorted(chains)
+
         # 3. Sort atoms based on the sorted list of chains
         atoms = []
         for chain in chains:
             for atom in self.atoms:
                 if atom.chain_name == chain: atoms.append(atom)
         self.atoms = atoms
+
         # 4. (Optional) Renumber residues
         self.renumber_residues()
 
-    def define_chains_from_connections(self, chain_id = "ABCDEFGHIJKLMOPQRSTUVWXYZ",
+
+    def define_chains_from_connections(self, chain_id = "ABCDEFGHIJKLMOPQRSTUV",
         overwrite = True):
         """
+        Follow the connection maps (defined in the molecule.conects and
+        therefore requires the input file to have CONECT records) and identify
+        breaks in the connection tree. Each isolated tree of connections will
+        correspond to a new chain. Return the number of chains identified.
+        If 'overwrite' is set to True (yes, by default), actually change each
+        atom chain_name parameter to match the indetified chain. The order of
+        naming each chain is set by 'chain_id' parameter (alphabetical order,
+        by default).
         """
+
+        assert type(chain_id) == str, \
+            "Chain ID should be a string of chain names"
+        assert type(overwrite) == bool, \
+            "'overwrite' parameter should be a boolean (True/False)"
 
         n_chains = 0
         atom_list = [atom.index for atom in self.atoms]
@@ -176,6 +254,7 @@ class Molecule:
             n_chains += 1
         return n_chains
     
+    
     # --- ALIGN ---
     def count(self, elem = None):
         """
@@ -189,6 +268,7 @@ class Molecule:
                 count += 1
         return count
         
+
     def compare_order(self, reference, elem = None):
         """
         Compare the order of the atoms between this molecule and a
@@ -202,6 +282,7 @@ class Molecule:
                 if not a1.elem == a2.elem:
                     return False
         return True
+        
         
     def verify_input(self, reference, elem = None):
         """
@@ -225,6 +306,7 @@ class Molecule:
                 assert reference.count([i]) > 0,\
                 "Atom element %s not found in Reference structure" % (i)
                 
+
     def apply_coordinates(self, new_coordinates):
         """
         Apply a matrix of coordinates to this molecule.
@@ -235,6 +317,7 @@ class Molecule:
             atom.y = coord[1]
             atom.z = coord[2]
             
+
     def as_matrix(self, elem = None):
         """
         Return a matrix of coordinates based on this molecule.
@@ -247,6 +330,7 @@ class Molecule:
                 coords.append([atom.x, atom.y, atom.z])
         return np.array(coords)
         
+
     def rmsd(self, reference, elem = None):
         """
         Calculate the RMSD between this molecule and a reference
@@ -260,6 +344,7 @@ class Molecule:
         d = r - m
         return n, np.sqrt(np.sum(d * d) / n)
             
+
     def align(self, reference, elem = None, verbose = True):
         """
         Align this molecule with a reference object. If an array
@@ -305,24 +390,24 @@ class Molecule:
             
             
     # --- EXPORT ---
-    def print_structure(self, filename, title="Aligned molecule"):
+    def export(self, filename, title="Aligned molecule"):
         """
         Infer the export function depending on the output filename
         extension.
         """
 
         if   filename[-3:] == "pdb":
-            self.print_as_pdb(filename, title)
+            self.as_pdb(filename, title)
         elif filename[-3:] == "gro":
-            self.print_as_gro(filename, title)
+            self.as_gro(filename, title)
         elif filename[-3:] == "xyz":
-            self.print_as_xyz(filename)
+            self.as_xyz(filename)
         else:
             print("File format for output unkown")
             exit(0)
                         
                          
-    def print_as_pdb(self, filename, title="Aligned molecule"):
+    def as_pdb(self, filename, title="Aligned molecule"):
         """
         Export this molecule information in PDB format.
         """
@@ -341,7 +426,8 @@ class Molecule:
                     pdb.write(" %4d" % (bond))
                 pdb.write("\n")
                 
-    def print_as_gro(self, filename, title="Aligned molecule"):
+
+    def as_gro(self, filename, title="Aligned molecule"):
         """
         Export this molecule information in GRO format.
         """
@@ -355,7 +441,8 @@ class Molecule:
                     atom.index, atom.x/10.0, atom.y/10.0, atom.z/10.0))
             gro.write("%10.5f%10.5f%10.5f\n\n" % (0.0, 0.0, 0.0))
             
-    def print_as_xyz(self, filename):
+
+    def as_xyz(self, filename):
         """
         Export this molecule information in XYZ format.
         """
@@ -386,8 +473,10 @@ class Atom:
         self.mass       = mass
         self.charge     = charge
 
+
     def as_pdb(self):
         """
+        Print this single atom in PDB format.
         """
 
         PDB = "ATOM %6d  %-3s %3s %1s %3d" + \
@@ -398,6 +487,7 @@ class Atom:
             self.chain_name, self.res_index, self.x,
             self.y, self.z, self.mass, self.charge,
             " ", self.elem[0])
+
 
     def __str__(self):
         return self.as_pdb()
