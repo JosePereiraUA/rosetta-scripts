@@ -1,6 +1,6 @@
 import os
-import align
 import argparse
+from ze_utils.molecule_manipulation import *
 
 #           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
 
@@ -20,7 +20,7 @@ def multi_align(elem):
     Print the RMSD pairs in descending order (Highest RMSD value first).
     """
     s = [f for f in os.listdir('.') if (os.path.isfile(f) and f[-4:] == ".pdb")]
-    structures = [align.Molecule(f) for f in s]
+    structures = [Molecule(f) for f in s]
     results = []
     for i in range(len(s) - 1):
         str_i = structures[i]
