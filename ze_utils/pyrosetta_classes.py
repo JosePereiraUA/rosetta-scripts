@@ -163,7 +163,6 @@ class PreFilter:
             n_terminal = ResidueIndexSelector(lig[0].seqpos())
             ie = InteractionEnergyMetric(n_terminal, self.sel_C)
             n_terminal_interaction = abs(ie.calculate(pose))
-            print("\n\n\n\n\n\n\n\n%f" % (n_terminal_interaction))
             if n_terminal_interaction > self.max_n_terminal_interaction:
                 data["n_terminal"] = (n_terminal_interaction, False)
                 to_return          = False
