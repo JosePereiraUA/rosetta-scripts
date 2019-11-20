@@ -16,17 +16,34 @@ class PreFilter:
      . Distance of the anchors (defined as the euclidean distance between two
      atoms in the pose. This atoms correspond to the possible attachment points
      for a loop unityng the two regions defined in 'sel_A' and 'sel_C'. This
-     distance must be inferior to 'anchors_cutoff'. 
+     distance must be inferior to 'anchors_cutoff'.
+
+     . If set to True, both the N and C terminals of the ligand/sel_B (chain B
+     in the ABC Model, by default) can have their blocking prevented. This means
+     that a 'max_terminal_interaction' value can be set, which will be surpassed
+     in the case of that terminal being blocked by the moving part/sel_C (chain
+     C in the ABC model, by default), in which case the filter condition will
+     return False. The considered interaction is the absolute value of the
+     InteractionEnergyMetric (since it should consider both favourable and 
+     disruptive interactions). If preventing block in one of more terminals, a
+     score_function needs to be provided. If set to "auto", score function will
+     be set using the get_fa_scrofxn() function.
 
     All cutoff distances in the PreFilter are in Angstrom.
     By default (if set to "auto"), the selections 'sel_A', 'sel_B' and 'sel_C'
-    refer to the Chains A, B and C, respectively.
+    refer to the Chains A, B and C, respectively (in accordance to the ABC
+    model - recommended).
     """
 
     def __init__(self, contact_cutoff = 9.0, contact_min_count = 7,
         anchors_cutoff = 27.0, clash_cutoff = 4.0, clashes_max_count = 2,
-        sel_A = "auto", sel_B = "auto", sel_C = "auto"):
+        sel_A = "auto", sel_B = "auto", sel_C = "auto",
+        prevent_block_C_terminal = False, prevent_block_N_terminal = True,
+        max_c_terminal_interaction = 0.0, max_n_terminal_interaction = 0.05,
+        score_function = "auto"):
 
+        from pyrosetta import get_fa_scorefxn
+        from pyrosetta.rosetta.core.scoring import ScoreFunction
         from pyrosetta.rosetta.core.select.residue_selector import \
             ResidueSelector, ChainSelector
 
@@ -37,15 +54,27 @@ class PreFilter:
         assert isinstance(sel_C, ResidueSelector) or sel_C == "auto", \
             "Selection C must be a ResidueSelector or set to 'auto'"
 
-        self.clashes_max_count = clashes_max_count
-        self.contact_min_count = contact_min_count
-        self.contact_cutoff    = contact_cutoff
-        self.anchors_cutoff    = anchors_cutoff
-        self.clash_cutoff      = clash_cutoff
+        self.clashes_max_count          = clashes_max_count
+        self.contact_min_count          = contact_min_count
+        self.contact_cutoff             = contact_cutoff
+        self.anchors_cutoff             = anchors_cutoff
+        self.clash_cutoff               = clash_cutoff
+        self.prevent_block_C_terminal   = prevent_block_C_terminal
+        self.prevent_block_N_terminal   = prevent_block_N_terminal
+        self.max_c_terminal_interaction = max_c_terminal_interaction
+        self.max_n_terminal_interaction = max_n_terminal_interaction
 
         self.sel_A = ChainSelector("A") if sel_A == "auto" else sel_A
         self.sel_B = ChainSelector("B") if sel_B == "auto" else sel_B
         self.sel_C = ChainSelector("C") if sel_C == "auto" else sel_C
+
+        assert type(score_function) == ScoreFunction or \
+            score_function == "auto",\
+            "Score function must be of type ScoreFunction or set to 'auto'"
+        if score_function == "auto":
+            self.score_function = get_fa_scorefxn()
+        else:
+            self.score_function = score_function
 
         
     def apply(self, pose):
@@ -62,11 +91,21 @@ class PreFilter:
         import numpy as np
         from ze_utils.pyrosetta_tools import \
             calc_d_table_between_selectors, get_residues_from_selector
+        from pyrosetta.rosetta.core.select.residue_selector import \
+            ResidueIndexSelector
+        from pyrosetta.rosetta.core.simple_metrics.metrics import \
+	        InteractionEnergyMetric
 
         to_return = True
-        data = {"contacts": (-1, False),
-                "distance": (-1, False),
-                "clashes" : (-1, False)}
+        data = {"contacts"  : (-1,  False),
+                "distance"  : (-1,  False),
+                "clashes"   : (-1,  False)}
+
+        if self.prevent_block_C_terminal:
+            data["c_terminal"] = (0.0, False)
+        if self.prevent_block_N_terminal:
+            data["n_terminal"] = (0.0, False)
+
         
         # Create distance table for pose
         d_table = calc_d_table_between_selectors(self.sel_B, self.sel_C, pose)
@@ -94,7 +133,7 @@ class PreFilter:
 
         # Get the distance from the closing loop anchors
         upstream_residues    = get_residues_from_selector(self.sel_A, pose)
-        upstream_res         = upstream_residues[len(upstream_residues) - 1]
+        upstream_res         = upstream_residues[-1]
         anchor_A             = upstream_res.atom("N")
 
         downstream_residues  = get_residues_from_selector(self.sel_C, pose)
@@ -112,6 +151,40 @@ class PreFilter:
                 % (distance, self.anchors_cutoff))
         else:
             data["distance"] = (distance, True)
+
+        # Verify if terminals are blocked. This function assumes the ABC Model
+        # and that the sequence of the ligand (chain B) goes from N terminal
+        # first to C terminal last.
+        lig = get_residues_from_selector(self.sel_B, pose)
+
+        # N Terminal
+        if self.prevent_block_N_terminal:
+            self.score_function(pose)
+            n_terminal = ResidueIndexSelector(lig[0].seqpos())
+            ie = InteractionEnergyMetric(n_terminal, self.sel_C)
+            n_terminal_interaction = abs(ie.calculate(pose))
+            print("\n\n\n\n\n\n\n\n%f" % (n_terminal_interaction))
+            if n_terminal_interaction > self.max_n_terminal_interaction:
+                data["n_terminal"] = (n_terminal_interaction, False)
+                to_return          = False
+                print("[PreFilter] N Terminal Interaction: (%f) > Max (%f)" \
+                    % (n_terminal_interaction, self.max_n_terminal_interaction))
+            else:
+                data["n_terminal"] = (n_terminal_interaction, True)
+
+        # C Terminal
+        if self.prevent_block_C_terminal:
+            self.score_function(pose)
+            c_terminal = ResidueIndexSelector(lig[-1].seqpos())
+            ie = InteractionEnergyMetric(c_terminal, self.sel_C)
+            c_terminal_interaction = abs(ie.calculate(pose))
+            if c_terminal_interaction > self.max_c_terminal_interaction:
+                data["c_terminal"] = (c_terminal_interaction, False)
+                to_return          = False
+                print("[PreFilter] C Terminal Interaction: (%f) > Max (%f)" \
+                    % (c_terminal_interaction, self.max_c_terminal_interaction))
+            else:
+                data["c_terminal"] = (c_terminal_interaction, True)
 
         return (to_return, data)
 
@@ -216,6 +289,10 @@ class PASSO:
             self.score_function = score_function
 
         # --- DOCK MOVER
+        # In the RigidBodyPerturbMover, the 3 parameters are the following:
+        #  First  = Jump number. The perturbation will be applied downstream.
+        #  Second = Max rotation in degrees. Based on the movable part centroid.
+        #  Third  = Max translation in angstrom.
         if dock_mover == "auto":
             self.dock_mover = RigidBodyPerturbMover(1, 3.0, 0.5)
         else:
@@ -319,6 +396,7 @@ class PASSO:
         # analysis.
         init_score = self.score_function(p)
         init_interaction = self.ie_metric.calculate(p)
+        self.update_energy_data(0, init_score, init_interaction)
 
         approved_count = 0
 
