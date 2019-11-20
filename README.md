@@ -96,3 +96,17 @@ values instead.
 
 By default prints the completion percentage of each docking grid point and the n structures (5, by default) with the *lowest*
 'total_score' parameter. If used in a SLURM environment, print the current percentage of rescources being used by the user.
+
+## 8. BLOSUM62 and MULTI_BLOSUM62 (blosum62.py and multi_blosum62.py)
+**`blosum62.py` script performs the calculation of BLOSUM62 score and sequence
+conservation percentage between two sequences, while `multi_blosum62.py`
+performs the same task but between all .pdb or .gro files indentifies in the
+query folder.**
+
+Any two sequences analyzed by this script need to be of the exat same length, as
+it does not, on its current version, perform any sort of pre sequence alignment.
+In the case of multi_blossum62.py script, the scores printed to the user can be
+ordered based on either the blossum62 score or the sequence conservation
+percentage (using the `-s` flag, choose between `blosum62` or `conserved`). The
+results can also be displayed is reverse order (lower values first) by using
+the `-r` flag.
