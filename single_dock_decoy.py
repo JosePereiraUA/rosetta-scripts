@@ -1,7 +1,7 @@
 import json
 import argparse
 from pyrosetta import *
-from ze_utils.pyrosetta_tools import set_ABC_model_fold_tree, verify_pre_filter
+from ze_utils.pyrosetta_tools import set_ABC_model_fold_tree, load_pre_filter
 from ze_utils.pyrosetta_classes import PASSO
 
 #           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
@@ -117,10 +117,10 @@ if __name__ == "__main__":
     validate_arguments(args)
     init()
 
-    # verify_pre_filter returns a default PreFilter if no JSON file is provided
+    # load_pre_filter returns a default PreFilter if no JSON file is provided
     # Any changes to single default values can be made after the loading of the
     # pre filter.
-    pre_filter = verify_pre_filter(args.pre_filter)
+    pre_filter = load_pre_filter(args.pre_filter)
     # Ex. pre_filter.contact_min_count = 6
     
     single_dock_decoy(args.input_file, args.output, args.n_steps, pre_filter)

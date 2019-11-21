@@ -11,7 +11,7 @@ from pyrosetta.rosetta.core.select.residue_selector import ChainSelector
 from single_dock import \
     deploy_decoys_on_slurm, deploy_decoys_on_pyjobdistributor
 from ze_utils.pyrosetta_tools import \
-    get_centroid_coordinates_from_selector, verify_pre_filter
+    get_centroid_coordinates_from_selector, load_pre_filter
 
 #           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
 
@@ -101,10 +101,10 @@ if __name__ == "__main__":
     pose           = pose_from_pdb(args.input_file)
     score_function = get_fa_scorefxn()
 
-    # verify_pre_filter returns a default PreFilter if no JSON file is provided
+    # load_pre_filter returns a default PreFilter if no JSON file is provided
     # Any changes to single default values can be made after the loading of the
     # pre filter.
-    pre_filter = verify_pre_filter(args.pre_filter)
+    pre_filter = load_pre_filter(args.pre_filter)
     # Ex. pre_filter.contact_min_count = 6
 
     # Define the center for the grid. By default, and when considering the ABC
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     # Check the DockingGrid class docstring for more detailed information on how
     # to do this.
     dg = DockingGrid(grid_center,
-        (-2, 40), (0, 4), (14, 30), 2, 2, 2, [centroidC])
+        (10, 40), (2, 8), (20, 20), 4, 3, 4, [centroidC])
 
     # Print to a configuration file the initial conditions of the simulation
     # (number of docks, decoys and steps) and initial total score of the pose
@@ -144,7 +144,6 @@ if __name__ == "__main__":
 
     # Ex. Print the current docking grid starting points in PDB format.
     dg.as_pdb("grid.pdb")
-    exit(1)
 
     # Looping over the number of points in the docking grid, move the Chain C
     # of the target protein to the new positions and run the simultaneous

@@ -1,8 +1,9 @@
 import argparse
 from pyrosetta import *
-from ze_utils.pyrosetta_classes import PASSO
+from ze_utils.pyrosetta_classes import PASSO, PreFilter
 from single_dock_decoy import single_dock_decoy
-from ze_utils.pyrosetta_tools import set_ABC_model_fold_tree, verify_pre_filter
+from ze_utils.pyrosetta_tools import \
+    set_ABC_model_fold_tree, load_pre_filter, save_pre_filter
 from ze_utils.common import get_number_of_jobs_in_slurm_queue
 
 #           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
@@ -51,9 +52,6 @@ def dump_sbatch_script(output_name, input_file, n_steps, pre_filter = "auto"):
 
     import json
 
-    assert type(pre_filter) == PreFilter, \
-        "Failed to dump PreFilter. 'pre_filter' needs to be of type PreFilter."
-
     with open("%s.sh" % (output_name), "w") as bash:
         bash.write("#!/bin/bash\n")
         bash.write("#SBATCH --partition=main\n")
@@ -67,10 +65,11 @@ def dump_sbatch_script(output_name, input_file, n_steps, pre_filter = "auto"):
         bash.write("#SBATCH --error=%s.err\n\n" % (output_name))
         bash.write("python ~/scripts/single_dock_decoy.py %s" % (input_file))
         bash.write(" -ns %d -o %s" % (n_steps, output_name))
+        
         if pre_filter != "auto":
-            with open("%s_pre_filter.json" % (output_name), "w") as pf_json:
-                json.dump(pre_filter.__dict__, pf_json)
-            bash.write(" -pf %s_pre_filter.json" % (output_name))
+            pre_filter_json_file = "%s_pre_filter.json" % (output_name)
+            save_pre_filter(pre_filter, pre_filter_json_file)
+            bash.write(" -pf %s" % (pre_filter_json_file))
 
 
 def deploy_decoys_on_slurm(input_file, output_prefix, n_decoys, n_steps,
@@ -96,6 +95,7 @@ def deploy_decoys_on_slurm(input_file, output_prefix, n_decoys, n_steps,
             if n_jobs_on_slurm_queue <= DEFAULT.max_slurm_jobs:
                 os.system("sbatch %s" % ("%s.sh" % (output_name)))
                 break
+            
 
 def deploy_decoys_on_pyjobdistributor(input_file, output_prefix, n_decoys,
     n_steps, score_function, pre_filter = "auto"):
@@ -142,23 +142,23 @@ if __name__ == "__main__":
     validate_arguments(args)
     score_function = get_fa_scorefxn()
 
-    # verify_pre_filter returns a default PreFilter if no JSON file is provided
+    # load_pre_filter returns a default PreFilter if no JSON file is provided
     # Any changes to single default values can be made after the loading of the
     # pre filter.
-    pre_filter = verify_pre_filter(args.pre_filter)
+    pre_filter = load_pre_filter(args.pre_filter)
     # Ex. pre_filter.contact_min_count = 6
 
     if args.slurm:
         deploy_decoys_on_slurm(
             args.input_file,
-            args.output,
+            args.input_file[:-4],
             args.n_decoys,
             args.n_steps,
             pre_filter)
     else:
         deploy_decoys_on_pyjobdistributor(
             args.input_file,
-            args.output,
+            args.input_file[:-4],
             args.n_decoys,
             args.n_steps,
             score_function,
