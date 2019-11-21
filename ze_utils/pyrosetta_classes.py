@@ -38,8 +38,8 @@ class PreFilter:
     model - recommended).
     """
 
-    def __init__(self, contact_cutoff = 9.0, contact_min_count = 7,
-        anchors_cutoff = 27.0, clash_cutoff = 4.0, clashes_max_count = 2,
+    def __init__(self, contact_cutoff = 9.0, contact_min_count = 10,
+        anchors_cutoff = 25.0, clash_cutoff = 4.0, clashes_max_count = 2,
         sel_A = "auto", sel_B = "auto", sel_C = "auto",
         prevent_block_C_terminal = False, prevent_block_N_terminal = True,
         max_c_terminal_interaction = 0.0, max_n_terminal_interaction = 0.05,
@@ -473,22 +473,24 @@ class DockingGrid:
     of points between this minimum and maximum positions are defined in the
     'repeats' parameters ('x_repeats', 'y_repeats'and 'z_repeats'), one number
     for each axis. Additionally, if any 'additional_points' are provided, those
-    will be added in the beggining of the points list.
+    will be added in the beggining of the points list. Using 'orient' function
+    will not mess with this addicional points.
     """
 
     def __init__(self, center = [0, 0, 0], xd=(0, 0), yd=(0, 0), zd=(0, 0),
         x_repeats = 0, y_repeats = 0, z_repeats = 0, additional_points = []):
 
-        self.center     = center
-        self.xt         = (xd[0] + xd[1]) / x_repeats
-        self.yt         = (yd[0] + yd[1]) / y_repeats
-        self.zt         = (zd[0] + zd[1]) / z_repeats
-        self.xd         = xd
-        self.yd         = yd
-        self.zd         = zd
-        self.x_repeats  = x_repeats
-        self.y_repeats  = y_repeats
-        self.z_repeats  = z_repeats
+        self.center    = center
+        self.xt        = (xd[0] + xd[1]) / x_repeats
+        self.yt        = (yd[0] + yd[1]) / y_repeats
+        self.zt        = (zd[0] + zd[1]) / z_repeats
+        self.xd        = xd
+        self.yd        = yd
+        self.zd        = zd
+        self.x_repeats = x_repeats
+        self.y_repeats = y_repeats
+        self.z_repeats = z_repeats
+        self.n_ap      = len(additional_points)
 
         if len(additional_points) > 0:
             self.points = additional_points
@@ -531,8 +533,8 @@ class DockingGrid:
         axis        = np.cross(comp, vector)
         angle       = get_angle_from_two_vectors(comp, vector)
         rot_matrix  = get_rotation_matrix_from_axis_angle(axis, angle)
-        self.points = rotate_coords_from_rotation_matrix(
-            self.points,
+        self.points[self.n_ap:] = rotate_coords_from_rotation_matrix(
+            self.points[self.n_ap:],
             rot_matrix,
             self.center)
 
@@ -576,7 +578,6 @@ class DockingGrid:
             for p in self.points:
                 a = Atom(chain_name="D", x = p[0], y = p[1], z = p[2])
                 file_out.write(a.as_pdb())
-
 
 
 class ResidueToAtomMapping:
