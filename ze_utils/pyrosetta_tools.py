@@ -5,6 +5,7 @@ from pyrosetta.rosetta.core.scoring import *
 from pyrosetta.rosetta.core.conformation import Residue
 from pyrosetta.rosetta.core.select.residue_selector import *
 
+# TODO: Documentation
 
 def get_residues_from_selector(selector, pose):
     """
@@ -117,6 +118,9 @@ def get_cartesian_coordinates_from_selector(selector, pose):
 
 
 def get_centroid_coordinates_from_selector(selector, pose):
+    """
+    """
+    
     coords = get_cartesian_coordinates_from_selector(selector, pose)
     return np.mean(coords, axis=0)
 
@@ -232,3 +236,46 @@ def set_ABC_model_fold_tree(pose):
         fold_tree.add_edge(fC, lC, -1)
         if not fold_tree.check_fold_tree(): exit(0)
         pose.fold_tree(fold_tree)
+
+
+def load_pre_filter(pre_filter = "auto"):
+    """
+    Reads an input JSON file name with all the parameters of a PreFilter and
+    returns an instance of PreFilter. In the input is set to "auto", returns
+    a default PreFilter instead.
+
+    To create a JSON file with the parameters of a customly defined PreFilter
+    check 'save_pre_filter'
+    """
+
+    from ze_utils.pyrosetta_classes import PreFilter
+
+    if pre_filter != "auto":
+        with open(pre_filter, "r") as pre_filter_config_json:
+            pf = json.load(pre_filter_config_json)
+        return PreFilter(pf["contact_cutoff"], pf["contact_min_count"],
+            pf["anchors_cutoff"], pf["clash_cutoff"], pf["clashes_max_count"],
+            pf["sel_A"], pf["sel_B"], pf["sel_C"],
+            pf["prevent_block_C_terminal"], pf["prevent_block_N_terminal"],
+            pf["max_c_terminal_interaction"], pf["max_n_terminal_interaction"],
+            pf["score_function"])
+    else:
+        return PreFilter()
+
+def save_pre_filter(pre_filter, filename):
+    """
+    TODO: Documentation
+    """
+
+    from ze_utils.pyrosetta_classes import PreFilter
+
+    assert type(pre_filter) == PreFilter, \
+        "Failed to dump PreFilter. 'pre_filter' needs to be of type PreFilter."
+
+    with open(filename, "w") as pf_json:
+        data = pre_filter.__dict__
+        data["sel_A"]          = "auto"
+        data["sel_B"]          = "auto"
+        data["sel_C"]          = "auto"
+        data["score_function"] = "auto"
+        json.dump(data, pf_json)
