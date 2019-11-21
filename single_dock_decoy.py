@@ -1,6 +1,7 @@
+import json
 import argparse
 from pyrosetta import *
-from ze_utils.pyrosetta_tools import set_ABC_model_fold_tree
+from ze_utils.pyrosetta_tools import set_ABC_model_fold_tree, verify_pre_filter
 from ze_utils.pyrosetta_classes import PASSO
 
 #           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
@@ -52,8 +53,9 @@ class DEFAULT:
     """
     Define defaults for the script. Values can be modified using arguments.
     """
-    n_steps = 2000
-    output  = "output" 
+    n_steps    = 2000
+    output     = "output"
+    pre_filter = "auto"
 
 def validate_arguments(args):
     """
@@ -65,7 +67,7 @@ def validate_arguments(args):
         exit("ERROR: Number of PASSO steps must be a non-negative value")
 
 
-def single_dock_decoy(input_file, output_prefix, n_steps):
+def single_dock_decoy(input_file, output_prefix, n_steps, pre_filter = "auto"):
     """
     Launch a new PASSO protocol.
     """
@@ -83,7 +85,9 @@ def single_dock_decoy(input_file, output_prefix, n_steps):
     pose.pdb_info().name("%s.pdb" % (output_prefix))
 
     # Create the PASSO protocol object
-    docker = PASSO(n_steps, score_function = score_function)
+    docker = PASSO(n_steps,
+        pre_filter = pre_filter,
+        score_function = score_function)
 
     # Apply the PASSO protocol to the new starting position pose
     docker.apply(pose)
@@ -105,9 +109,18 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--output', metavar='', type=str,
         help='Output name prefix (Default: %s)' % (DEFAULT.output),
         default = DEFAULT.output)
+    parser.add_argument('-pf', '--pre_filter', metavar='', type=str,
+        help='Input pre filter JSON file (Default: %s)' % (DEFAULT.pre_filter),
+        default = DEFAULT.pre_filter)
 
     args = parser.parse_args()
     validate_arguments(args)
     init()
 
-    single_dock_decoy(args.input_file, args.output, args.n_steps)
+    # verify_pre_filter returns a default PreFilter if no JSON file is provided
+    # Any changes to single default values can be made after the loading of the
+    # pre filter.
+    pre_filter = verify_pre_filter(args.pre_filter)
+    # Ex. pre_filter.contact_min_count = 6
+    
+    single_dock_decoy(args.input_file, args.output, args.n_steps, pre_filter)

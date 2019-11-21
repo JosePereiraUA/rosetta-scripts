@@ -1,3 +1,6 @@
+from pyrosetta import *
+init()
+
 class PreFilter:
     """
     Simple filter that can be applied to a pose. Returns true if all conditions
@@ -42,7 +45,6 @@ class PreFilter:
         max_c_terminal_interaction = 0.0, max_n_terminal_interaction = 0.05,
         score_function = "auto"):
 
-        from pyrosetta import get_fa_scorefxn
         from pyrosetta.rosetta.core.scoring import ScoreFunction
         from pyrosetta.rosetta.core.select.residue_selector import \
             ResidueSelector, ChainSelector
@@ -470,13 +472,12 @@ class DockingGrid:
     extent in the x axis, respectively, starting from the 'center'. The number
     of points between this minimum and maximum positions are defined in the
     'repeats' parameters ('x_repeats', 'y_repeats'and 'z_repeats'), one number
-    for each axis. Additionally, if 'use_init_pos' is set to True, the original
-    position is added to the grid points and defined as point 0 (True by
-    default).
+    for each axis. Additionally, if any 'additional_points' are provided, those
+    will be added in the beggining of the points list.
     """
 
     def __init__(self, center = [0, 0, 0], xd=(0, 0), yd=(0, 0), zd=(0, 0),
-        x_repeats = 0, y_repeats = 0, z_repeats = 0, use_init_pos = True):
+        x_repeats = 0, y_repeats = 0, z_repeats = 0, additional_points = []):
 
         self.center     = center
         self.xt         = (xd[0] + xd[1]) / x_repeats
@@ -489,8 +490,8 @@ class DockingGrid:
         self.y_repeats  = y_repeats
         self.z_repeats  = z_repeats
 
-        if use_init_pos:
-            self.points = [center]
+        if len(additional_points) > 0:
+            self.points = additional_points
         else:
             self.points = []
             

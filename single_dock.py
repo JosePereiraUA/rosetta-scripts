@@ -2,7 +2,7 @@ import argparse
 from pyrosetta import *
 from ze_utils.pyrosetta_classes import PASSO
 from single_dock_decoy import single_dock_decoy
-from ze_utils.pyrosetta_tools import set_ABC_model_fold_tree
+from ze_utils.pyrosetta_tools import set_ABC_model_fold_tree, verify_pre_filter
 from ze_utils.common import get_number_of_jobs_in_slurm_queue
 
 #           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
@@ -23,6 +23,7 @@ class DEFAULT:
     n_decoys       = 100
     n_steps        = 2000
     max_slurm_jobs = 499
+    pre_filter     = "auto"
 
 
 def validate_arguments(args):
@@ -37,7 +38,7 @@ def validate_arguments(args):
         exit("ERROR: Number of PASSO steps must be a non-negative value")
 
 
-def dump_sbatch_script(output_name, input_file, n_steps):
+def dump_sbatch_script(output_name, input_file, n_steps, pre_filter = "auto"):
     """
     Creates a new bash file at 'output_name'.sh path that instructs the SLURM
     framework to spawn a new single_dock_decoy. The location of this script is,
@@ -47,6 +48,11 @@ def dump_sbatch_script(output_name, input_file, n_steps):
     docking grid, but a custom 'input_file' can be provided.
     Each decoy simulation will perform 'n_steps' of the PASSO protocol.
     """
+
+    import json
+
+    assert type(pre_filter) == PreFilter, \
+        "Failed to dump PreFilter. 'pre_filter' needs to be of type PreFilter."
 
     with open("%s.sh" % (output_name), "w") as bash:
         bash.write("#!/bin/bash\n")
@@ -61,9 +67,14 @@ def dump_sbatch_script(output_name, input_file, n_steps):
         bash.write("#SBATCH --error=%s.err\n\n" % (output_name))
         bash.write("python ~/scripts/single_dock_decoy.py %s" % (input_file))
         bash.write(" -ns %d -o %s" % (n_steps, output_name))
+        if pre_filter != "auto":
+            with open("%s_pre_filter.json" % (output_name), "w") as pf_json:
+                json.dump(pre_filter.__dict__, pf_json)
+            bash.write(" -pf %s_pre_filter.json" % (output_name))
 
 
-def deploy_decoys_on_slurm(input_file, output_prefix, n_decoys, n_steps):
+def deploy_decoys_on_slurm(input_file, output_prefix, n_decoys, n_steps,
+    pre_filter = "auto"):
     """
     Launch the PASSO protocol decoys in parallel mode, using SLURM on AMAREL
     framework. This function will remain ad infinitum waiting for processors to
@@ -77,7 +88,7 @@ def deploy_decoys_on_slurm(input_file, output_prefix, n_decoys, n_steps):
     user = os.environ['USER']
     for decoy_index in range(n_decoys):
         output_name = "%s_%d" % (output_prefix, decoy_index)
-        dump_sbatch_script(output_name, input_file, n_steps)
+        dump_sbatch_script(output_name, input_file, n_steps, pre_filter)
 
         while True:
             n_jobs_on_slurm_queue = get_number_of_jobs_in_slurm_queue(user)
@@ -87,7 +98,7 @@ def deploy_decoys_on_slurm(input_file, output_prefix, n_decoys, n_steps):
                 break
 
 def deploy_decoys_on_pyjobdistributor(input_file, output_prefix, n_decoys,
-    n_steps, score_function):
+    n_steps, score_function, pre_filter = "auto"):
     """
     Launch the PASSO protocol decoys in serial mode, using the PyJobDistributor.
     Each decoy will occupy one processor on the machine, and a new decoy will be
@@ -97,7 +108,7 @@ def deploy_decoys_on_pyjobdistributor(input_file, output_prefix, n_decoys,
     job_man = PyJobDistributor(output_prefix, n_decoys, score_function)
     while not job_man.job_complete:
         output_name = "%s_%d" % (output_prefix, job_man.current_id)
-        p = single_dock_decoy(input_file, output_name, n_steps)
+        p = single_dock_decoy(input_file, output_name, n_steps, pre_filter)
 
         # this is the last frame of the simulation. Since the PASSO protocol is
         # based on MonteCarlo, it might not correspond to the lowest energy
@@ -123,21 +134,32 @@ if __name__ == "__main__":
         default = DEFAULT.n_steps)
     parser.add_argument('-s', '--slurm', action = 'store_true',
         help = "Use SLURM to launch parallel decoys (Default: False)")
+    parser.add_argument('-pf', '--pre_filter', metavar='', type=str,
+        help='Input pre filter JSON file (Default: %s)' % (DEFAULT.pre_filter),
+        default = DEFAULT.pre_filter)
 
     args = parser.parse_args()
     validate_arguments(args)
     score_function = get_fa_scorefxn()
+
+    # verify_pre_filter returns a default PreFilter if no JSON file is provided
+    # Any changes to single default values can be made after the loading of the
+    # pre filter.
+    pre_filter = verify_pre_filter(args.pre_filter)
+    # Ex. pre_filter.contact_min_count = 6
 
     if args.slurm:
         deploy_decoys_on_slurm(
             args.input_file,
             args.output,
             args.n_decoys,
-            args.n_steps)
+            args.n_steps,
+            pre_filter)
     else:
         deploy_decoys_on_pyjobdistributor(
             args.input_file,
             args.output,
             args.n_decoys,
             args.n_steps,
-            score_function)
+            score_function,
+            pre_filter)

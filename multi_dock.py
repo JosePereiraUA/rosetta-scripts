@@ -7,10 +7,11 @@ import numpy as np
 from pyrosetta import *
 from ze_utils.pyrosetta_classes import DockingGrid
 from pyrosetta.rosetta.core.select import get_residues_from_subset
-from ze_utils.pyrosetta_tools import get_centroid_coordinates_from_selector
 from pyrosetta.rosetta.core.select.residue_selector import ChainSelector
 from single_dock import \
     deploy_decoys_on_slurm, deploy_decoys_on_pyjobdistributor
+from ze_utils.pyrosetta_tools import \
+    get_centroid_coordinates_from_selector, verify_pre_filter
 
 #           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
 
@@ -34,9 +35,9 @@ class DEFAULT:
     """
     Define defaults for the script. Values can be modified using arguments.
     """
-    n_decoys = 100
-    n_steps  = 2000
-    max_jobs = 499
+    n_decoys   = 100
+    n_steps    = 2000
+    max_jobs   = 499
 
 
 def validate_arguments(args):
@@ -82,6 +83,9 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--dry_run', action = 'store_true',
         help = """Dry Run: Export only the starting positions to the correct
         folder, but don't run simulations on them (Default: False)""")
+    parser.add_argument('-pf', '--pre_filter', metavar='', type=str,
+        help='Input pre filter JSON file (Default: auto)',
+        default = "auto")
 
     args = parser.parse_args()
     validate_arguments(args)
@@ -97,6 +101,12 @@ if __name__ == "__main__":
     pose           = pose_from_pdb(args.input_file)
     score_function = get_fa_scorefxn()
 
+    # verify_pre_filter returns a default PreFilter if no JSON file is provided
+    # Any changes to single default values can be made after the loading of the
+    # pre filter.
+    pre_filter = verify_pre_filter(args.pre_filter)
+    # Ex. pre_filter.contact_min_count = 6
+
     # Define the center for the grid. By default, and when considering the ABC
     # model, this is the position in the vector AB at the same distance from
     # the centroid of the ligand as the initial chain C position.
@@ -111,7 +121,8 @@ if __name__ == "__main__":
     # this script constitute a default docking grid, but can be freely modified.
     # Check the DockingGrid class docstring for more detailed information on how
     # to do this.
-    dg = DockingGrid(grid_center, (-2, 40), (0, 4), (14, 30), 2, 2, 2)
+    dg = DockingGrid(grid_center,
+        (-2, 40), (0, 4), (14, 30), 2, 2, 2, [centroidC])
 
     # Print to a configuration file the initial conditions of the simulation
     # (number of docks, decoys and steps) and initial total score of the pose
@@ -130,6 +141,10 @@ if __name__ == "__main__":
     E = np.array((pose.residue(list(lig_res)[len(lig_res) - 1]).atom(2).xyz()))
     de_normal = (E - D) / np.linalg.norm(D - E)
     dg.orient(np.array([1, 0, 0]), de_normal)
+
+    # Ex. Print the current docking grid starting points in PDB format.
+    dg.as_pdb("grid.pdb")
+    exit(1)
 
     # Looping over the number of points in the docking grid, move the Chain C
     # of the target protein to the new positions and run the simultaneous
@@ -160,13 +175,15 @@ if __name__ == "__main__":
                 "start_%d.pdb" % (point_id),
                 "%d" % (point_id),
                 args.n_decoys,
-                args.n_steps)
+                args.n_steps,
+                pre_filter)
         else:
             deploy_decoys_on_pyjobdistributor(
                 "start_%d.pdb" % (point_id),
                 "%d" % (point_id),
                 args.n_decoys,
                 args.n_steps,
-                score_function)
+                score_function,
+                pre_filter)
 
         os.chdir(current_work_directory)
