@@ -1,4 +1,22 @@
-# TODO: Documentation
+from os.path import expanduser as expusr
+
+#
+#                            C O M M O N               
+#
+#           \\ INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
+#
+# Functions included:
+# 1) get_number_of_jobs_in_slurm_queue
+#    Returns the numbers of SLURM jobs in the current user's queue
+#
+# 2) progress_bar
+#    Returns a progress bar string with a set length and set to the given value
+#
+# 3) read_matrix_from_txt_file
+#    Returns a BLOSUM62 matrix and its entries
+#
+# 4) blosum62
+#    Use a BLOSUM62 matrix and entries to calculate the score between 2 strings
 
 def get_number_of_jobs_in_slurm_queue(user):
     """
@@ -40,21 +58,17 @@ def progress_bar(current, maximum, length, fill = "#", empty = "-"):
 
     x = math.floor((current * length) / maximum)
     y = length - x
+
     return "[" + fill*x + empty*y + "]"
 
-
-#     BLOSUM62
-#
-# The following functions aims to facilitate the calculation of BLOSUM62 scores
-# between 2 aminoacid sequences. 
-
-from os.path import expanduser as expusr
 
 def read_matrix_from_txt_file(f = expusr("~/Desktop/scripts/static/b62.txt")):
     """
     Read a BLOSUM62 matrix from a TXT file. Since this file requires a specific
     format, the usage of the matrix on the default location is encourgaed. 
     Returns both the loaded matrix and the list of its entries.
+
+    See also: blosum62
     """
 
     matrix = []
@@ -70,10 +84,13 @@ def blosum62(matrix, entries, query, reference):
     Use a matrix (and its entries) to calculate the BLOSUM62 score between a
     query and reference structure. Returns the total score and the score per
     residue on a list.
+
+    See also: read_matrix_from_txt_file
     """
 
     per_residue_score = []
     for q, r in zip(query, reference):
         residue_score = matrix[entries.index(q)][entries.index(r)]
         per_residue_score.append(residue_score)
+        
     return sum(per_residue_score), per_residue_score
