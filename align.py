@@ -33,7 +33,19 @@ if __name__ == '__main__':
         help='Filter alignment by atom element. (Optional)', metavar='ELEM')
     args = parser.parse_args()
 
-    prediction = Molecule(args.m)
+    # 1) Load molecules
+    movable   = Molecule(args.m)
     reference = Molecule(args.r)
-    prediction.align(reference, args.f)
-    prediction.print_structure(args.o)
+    
+    # 2) Obtain masks, if provided with an element filter
+    if args.f is not None:
+        movable_mask   = movable.get_mask_for_elements(args.f)
+        reference_mask = reference.get_mask_for_elements(args.f)
+    else:
+        movable_mask, reference_mask = None, None
+
+    # 3) Perform alignment, based on the created masks, if provided
+    movable.align(reference, movable_mask, reference_mask)
+
+    # 4) Print the alignment to a file
+    movable.export(args.o)

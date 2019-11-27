@@ -26,12 +26,22 @@ def multi_align(elem):
         str_i = structures[i]
         for j in range(i+1, len(s)):
             str_j = structures[j]
-            rms = str_i.align(str_j, elem, verbose = False)
+
+            # Obtain masks, if provided with an element filter
+            if elem is not None:
+                str_i_mask = str_i.get_mask_for_elements(elem)
+                str_j_mask = str_j.get_mask_for_elements(elem)
+            else:
+                str_i_mask, str_j_mask = None, None
+
+            # Perform alignment, based on the created masks, if provided
+            rms = str_i.align(str_j, str_i_mask, str_j_mask, verbose = False)
             results.append((str_i.name, str_j.name, rms))
 
     results = sorted(results, key = lambda x: x[2], reverse = True)
     for r in results:
         print("%s <-> %s : %7.3f" % (r[0], r[1], r[2]))
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""Align all PDB files in
@@ -41,5 +51,5 @@ if __name__ == "__main__":
         help='If set, align only CA vs CA instead of all atoms')
         
     args = parser.parse_args()
-    elem = "CA" if args.ca else None
+    elem = ["CA"] if args.ca else None
     multi_align(elem)

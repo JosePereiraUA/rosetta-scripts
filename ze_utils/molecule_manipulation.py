@@ -1,6 +1,7 @@
 # TODO: Documentation
 
 # LOAD from PDB, XYZ, GRO
+# ATOM SELECTION/MASKING FUNCTIONS (...)
 # SET CHAIN FROM RANGE
 # REMOVE RESIDUES IN RANGE
 # RENUMBER RESIDUES FROM START = INT 
@@ -36,7 +37,7 @@ class Molecule:
         self.load(filename)
         
 
-    def __str__(self):
+    def __str__(self):  
         self.as_pdb(sys.stdout)
         return ""
         
@@ -130,30 +131,20 @@ class Molecule:
                     index += 1
     
 
-    # --- GENERAL MANIPULATION ---
-    def get_residue_atoms_from_indexes(self, res_indexes):
+    # --- MASKING ---
+    def get_mask(self, expression, parameters):
         """
-        Iterate over the Molecule atoms and return the atom instances (and
-        respective atom indexes) for the given residues in 'res_indexes' list.
-        """
+        Return a Boolean list with an entry for each atom in the Molecule. Set
+        the entries whose index correspond to the list of atom indexes returned
+        from the given 'expression' (acting on the given 'parameters') to True.
+        This function should not be used directly.
+        Instead, check "Atom selection/masking functions" bellow.
 
-        atoms, indexes = [], []
-        for res_index in res_indexes:
-            for index, atom in enumerate(self.atoms):
-                if atom.res_index == res_index:
-                    atoms.append(atom)
-                    indexes.append(index)
-        return atoms, indexes
-
-
-    def get_mask_for_residue_indexes(self, res_indexes):
-        """
-        Returns a mask where only the atoms belonging to the residues defined in
-        the 'res_indexes' list are set to True.
+        See also: get_atoms_based_on_parameter
         """
 
         # 1) Find all atoms to be masked as True
-        atoms, atom_indexes = self.get_residue_atoms_from_indexes(res_indexes)
+        atoms, atom_indexes = getattr(self, expression)(parameters)
 
         # 2) Create the default mask (all False)
         mask = [False] * len(self.atoms)
@@ -165,7 +156,47 @@ class Molecule:
         # 4) Return mask
         return mask
 
+    
+    def get_atoms_based_on_parameter(self, parameter, query):
+        """
+        Iterate the atoms list and extract only the atoms (and corresponding
+        indexes) whose 'parameter' exists in the 'query' list of parmeters.
+        This function should not be used directly.
+        Instead, check "Atom selection/masking functions" bellow.
 
+        See also: get_mask
+        """
+
+        atoms, indexes = [], []
+        for entry in query:
+            for index, atom in enumerate(self.atoms):
+                if getattr(atom, parameter) == entry:
+                    atoms.append(atom)
+                    indexes.append(index)
+
+        return atoms, indexes
+
+
+    # ... Atom selection/masking functions:
+    # . Based on residue index
+    def get_mask_for_residue_indexes(self, res_indexes):
+        return self.get_mask("get_atoms_from_residue_indexes", res_indexes)
+
+
+    def get_atoms_from_residue_indexes(self, res_indexes):
+        return self.get_atoms_based_on_parameter("res_index", res_indexes)
+
+
+    # . Based on atom element
+    def get_mask_for_elements(self, elements):
+        return self.get_mask("get_atoms_from_element", elements)
+
+
+    def get_atoms_from_element(self, elements):
+        return self.get_atoms_based_on_parameter("elem", elements)
+
+
+    # --- GENERAL MANIPULATION ---
     def set_chain_from_range(self, chain_name, range_start, range_end):
         """
         Iterate over all atoms and change the atom.chain_name to match the
@@ -287,6 +318,7 @@ class Molecule:
                 atom_list.remove(stack[0])
                 stack.pop(0)
             n_chains += 1
+            
         return n_chains
     
 
