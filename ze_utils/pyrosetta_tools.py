@@ -238,20 +238,20 @@ def set_ABC_model_fold_tree(pose):
         pose.fold_tree(fold_tree)
 
 
-def load_pre_filter(pre_filter = "auto"):
+def load_pre_filter(filename = "auto"):
     """
-    Reads an input JSON file name with all the parameters of a PreFilter and
-    returns an instance of PreFilter. In the input is set to "auto", returns
-    a default PreFilter instead.
+    Reads an input JSON 'filename' with all the parameters of a PreFilter and
+    returns an instance of PreFilter. In the 'filename' is set to "auto",
+    returns a default PreFilter instead.
 
     To create a JSON file with the parameters of a customly defined PreFilter
-    check 'save_pre_filter'
+    check 'save_pre_filter' function.
     """
 
     from ze_utils.pyrosetta_classes import PreFilter
 
-    if pre_filter != "auto":
-        with open(pre_filter, "r") as pre_filter_config_json:
+    if filename != "auto":
+        with open(filename, "r") as pre_filter_config_json:
             pf = json.load(pre_filter_config_json)
         return PreFilter(pf["contact_cutoff"], pf["contact_min_count"],
             pf["anchors_cutoff"], pf["clash_cutoff"], pf["clashes_max_count"],
@@ -262,9 +262,15 @@ def load_pre_filter(pre_filter = "auto"):
     else:
         return PreFilter()
 
+
 def save_pre_filter(pre_filter, filename):
     """
-    TODO: Documentation
+    Saves the input 'pre_filter' as a JSON dictionary in 'filename'. However,
+    the PreFilter sel_A, sel_B, selC and score_function parameters are ignored
+    and set as "auto".
+
+    To load a JSON pre filter file as a PreFilter instance, check
+    load_pre_filter function.
     """
 
     from ze_utils.pyrosetta_classes import PreFilter

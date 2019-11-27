@@ -20,9 +20,11 @@ from ze_utils.pyrosetta_classes import PASSO
 # defined;
 #  - Chain C: (Movable) Movable part of the protein, which will be subject to
 # the pseudo docking process (random movement + design);
-#  This model can be set-up using the 'ze_utils.molecule_manipulation' module,
-# by manually setting the chains between a range of consecutive residues
-# as follows:
+#
+#  Furthermore, the linker loop between any of this regions can (and should) be
+# removed. This model can be set-up using the 'ze_utils.molecule_manipulation'
+# module, by manually setting the chains between a range of consecutive residues
+# and deleting the loop residues, as follows:
 #
 # pdb = Molecule("input.pdb")             # Load structure
 # pdb.set_chain_from_range('A', 376, 473) # Set Chain A
@@ -32,7 +34,7 @@ from ze_utils.pyrosetta_classes import PASSO
 # pdb.sort_residues_by_chain()            # (Optional) Renumber all residues
 # pdb.print_structure("output.pdb")       # Save edited structure
 #
-# Or by automatically identifying chains from the connection graphs, as long as
+#  Or by automatically identifying chains from the connection graphs, as long as
 # the chains are deterministically separated in the CONECT records of the input
 # PDB file:
 #
@@ -42,12 +44,15 @@ from ze_utils.pyrosetta_classes import PASSO
 # pdb.remove_residues_in_range(90, 108)     # Remove atoms in the loop region
 # pdb.print_structure("3ch8_3p_rlx.pdb")    # Save edited structure
 #
-# THIS SCRIPT PERFORMS ONLY ONE DECOY ON THE PASSO PROTOCOL.
+# Note: Pyrosetta automatically caps these new terminals where the loop was.
+#
+#    THIS SCRIPT PERFORMS ONLY ONE DECOY ON THE PASSO PROTOCOL.
 #  > Check single_dock.py script for multiple decoy PASSO simulation
 #  > Check multi_dock.py script for multiple starting positions PASSO simulation
 #
 # For more information and similar scripts, please read:
 # https://graylab.jhu.edu/pyrosetta/downloads/scripts/demo/D100_Docking.py
+
 
 class DEFAULT:
     """
@@ -69,8 +74,14 @@ def validate_arguments(args):
 
 def single_dock_decoy(input_file, output_prefix, n_steps, pre_filter = "auto"):
     """
-    Launch a new PASSO protocol.
+    Launch a new PASSO protocol from the 'input_file' pose (must be a PDB file).
+    All output files from the PASSO protocol will have the 'output_prefix'. The
+    protocol will run for 'n_steps', using the given 'pre_filter' (when set to
+    "auto" will use the default filter).
     """
+
+    assert input_file[:-4] == ".pdb", \
+        "Input file for PASSO protocol must be in PDB format."
 
     # Load the pose and the score function
     pose = pose_from_pdb(input_file)
