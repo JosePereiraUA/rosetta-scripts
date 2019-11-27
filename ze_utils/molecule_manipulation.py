@@ -6,8 +6,6 @@
 # RENUMBER RESIDUES FROM START = INT 
 # SORT RESIDUES BY CHAIN
 # DEFINE CHAINS FROM CONNECTIONS
-# COUNT ATOMS OF ELEMENT
-# COMPARE ORDER
 # AS MATRIX
 # APPLY COORDINATES
 # RMSD
@@ -15,6 +13,7 @@
 # PRINT as PDB, XYZ, GRO
 
 import numpy as np
+import sys
 
 # d321 dictionary converts 3 letter aminoacid representation to 1 letter
 d321 = {"CYS": "C", "ASP": "D", "SER": "S", "GLN": "Q", "LYS": "K",
@@ -38,7 +37,8 @@ class Molecule:
         
 
     def __str__(self):
-        return self.as_pdb()
+        self.as_pdb(sys.stdout)
+        return ""
         
     # --- LOAD ---
     def load(self, filename):
@@ -131,6 +131,41 @@ class Molecule:
     
 
     # --- GENERAL MANIPULATION ---
+    def get_residue_atoms_from_indexes(self, res_indexes):
+        """
+        Iterate over the Molecule atoms and return the atom instances (and
+        respective atom indexes) for the given residues in 'res_indexes' list.
+        """
+
+        atoms, indexes = [], []
+        for res_index in res_indexes:
+            for index, atom in enumerate(self.atoms):
+                if atom.res_index == res_index:
+                    atoms.append(atom)
+                    indexes.append(index)
+        return atoms, indexes
+
+
+    def get_mask_for_residue_indexes(self, res_indexes):
+        """
+        Returns a mask where only the atoms belonging to the residues defined in
+        the 'res_indexes' list are set to True.
+        """
+
+        # 1) Find all atoms to be masked as True
+        atoms, atom_indexes = self.get_residue_atoms_from_indexes(res_indexes)
+
+        # 2) Create the default mask (all False)
+        mask = [False] * len(self.atoms)
+
+        # 3) Set the masked atoms to True
+        for masked_atom in atom_indexes:
+            mask[masked_atom] = True
+
+        # 4) Return mask
+        return mask
+
+
     def set_chain_from_range(self, chain_name, range_start, range_end):
         """
         Iterate over all atoms and change the atom.chain_name to match the
@@ -297,57 +332,6 @@ class Molecule:
 
 
     # --- ALIGN ---
-    def count(self, elem = None):
-        """
-        Count the number of atoms in this molecule of the provided
-        element `elem`. By default, counts total number of atoms.
-        """
-
-        count = 0
-        for atom in self.atoms:
-            if elem == None or atom.elem in elem:
-                count += 1
-        return count
-        
-
-    def compare_order(self, reference, elem = None):
-        """
-        Compare the order of the atoms between this molecule and a
-        reference object. If an array of elements is provided, the
-        comparison is only performed based on the subset of atoms
-        of those elements.
-        """
-
-        for a1, a2 in zip(self.atoms, reference.atoms):
-            if elem == None or (a1.elem in elem and a2.elem in elem):
-                if not a1.elem == a2.elem:
-                    return False
-        return True
-        
-        
-    def verify_input(self, reference, elem = None):
-        """
-        Verify the input for proper alignment:
-        1) Number of atoms should match;
-        2) Atoms should be in the same order;
-        3) All elements provided in the filter must exist in both
-        structures
-        """
-
-        assert self.count(elem) == reference.count(elem),\
-        "Movable and Refence structures don't have the same number of atoms"
-
-        assert self.compare_order(reference, elem),\
-        "Movable and Reference structures do not have the same element order"
-
-        if not elem == None:
-            for i in elem:
-                assert self.count([i]) > 0,\
-                "Atom element %s not found in Movable structure" % (i)
-                assert reference.count([i]) > 0,\
-                "Atom element %s not found in Reference structure" % (i)
-                
-
     def apply_coordinates(self, new_coordinates):
         """
         Apply a matrix of coordinates to this molecule.
@@ -359,48 +343,61 @@ class Molecule:
             atom.z = coord[2]
             
 
-    def as_matrix(self, elem = None):
+    def as_matrix(self, mask = None):
         """
-        Return a matrix of coordinates based on this molecule.
+        Return a matrix of coordinates based on this molecule. If a mask is
+        provided, only the atoms whose index on the mask is True are returned.
         """
 
-        n = len(self.atoms)
+        if not mask == None:
+            true_mask = len([x for x in mask if x])
+            assert true_mask > 0, "Mask must have more than 0 atoms selected"
+
         coords = []
         for index, atom in enumerate(self.atoms):
-            if elem == None or atom.elem in elem:
+            if mask == None or mask[index] == True:
                 coords.append([atom.x, atom.y, atom.z])
         return np.array(coords)
         
 
-    def rmsd(self, reference, elem = None):
+    def rmsd(self, reference, movable_mask = None, reference_mask = None):
         """
-        Calculate the RMSD between this molecule and a reference
-        object. Also returns the number of atoms considered for
-        this calculation.
+        Calculate the RMSD between this molecule and a reference object. Also
+        returns the number of atoms considered for this calculation. If movable
+        and references masks are provided, only consider the atoms whose index
+        in the corresponding mask is set to True.
         """
 
-        m = self.as_matrix(elem)
-        r = reference.as_matrix(elem)
-        n = len(r)
-        d = r - m
-        return n, np.sqrt(np.sum(d * d) / n)
+        movable_coords   = self.as_matrix(movable_mask)
+        reference_coords = reference.as_matrix(reference_mask)
+
+        assert len(movable_coords) == len(reference_coords), \
+            "Movable (%d) and Reference (%d) number of atoms do not match" % \
+            (len(movable_coords), len(reference_coords))
+
+        n_atoms          = len(reference_coords)
+        distance         = reference_coords - movable_coords
+
+        return n_atoms, np.sqrt(np.sum(distance * distance) / n_atoms)
             
 
-    def align(self, reference, elem = None, verbose = True):
+    def align(self, reference, movable_mask = None, reference_mask = None,
+        verbose = True):
         """
-        Align this molecule with a reference object. If an array
-        of elements is provided, the alignment is only performed based
-        on the subset of atoms of those elements. Verbose flag
-        determines if the RMSD value is computed and printed (Default:
-        True).
+        Align this molecule with a reference object. If movable and reference
+        masks are provided (Default: None), only the atoms whose index in the
+        corresponding mask is set to True will be considered for alignment. Both
+        sets of masked atoms must be on the same size. Verbose flag determines
+        if the RMSD value is computed and printed (Default: True).
         """
-
-        # 0) Input verifications
-        self.verify_input(reference, elem)
             
         # 1) Get coordinates as a matrix
-        movable_coords    = self.as_matrix(elem)
-        reference_coords  = reference.as_matrix(elem)
+        movable_coords    = self.as_matrix(movable_mask)
+        reference_coords  = reference.as_matrix(reference_mask)
+
+        assert len(movable_coords) == len(reference_coords), \
+            "Movable (%d) and Reference (%d) number of atoms do not match" % \
+            (len(movable_coords), len(reference_coords))
         
         # 2) Center on centroid
         n                = len(self.atoms)
@@ -424,21 +421,22 @@ class Molecule:
         self.apply_coordinates(transformed_coords)
         
         # 7) Calculate RMSD (Optional)
-        count, rms = self.rmsd(reference, elem)
+        count, rms = self.rmsd(reference, movable_mask, reference_mask)
         if verbose:
             print("RMSD: %6.3f angstrom (%3d atoms)" % (rms, count))
+        
         return rms
             
             
     # --- EXPORT ---
-    def export(self, filename, title="Aligned molecule"):
+    def export(self, filename, title = "Molecule"):
         """
-        Infer the export function depending on the output filename
-        extension.
+        Infer the export function depending on the output filename extension and
+        write the molecule contents in the appropriate format to a file.
         """
 
         if   filename[-3:] == "pdb":
-            self.as_pdb(filename, title)
+            self.as_pdb_to_file(filename, title)
         elif filename[-3:] == "gro":
             self.as_gro(filename, title)
         elif filename[-3:] == "xyz":
@@ -448,27 +446,39 @@ class Molecule:
             exit(0)
                         
                          
-    def as_pdb(self, filename, title="Aligned molecule"):
+    def as_pdb_to_file(self, filename, title = "Molecule"):
+        """
+        Export this molecule information in PDB format to a file.
+        """
+
+        with open(filename, "w") as pdb:
+            self.as_pdb(pdb, title)
+
+    def as_pdb(self, des, title = "Molecule"):
         """
         Export this molecule information in PDB format.
         """
 
-        with open(filename, "w") as pdb:
-            PDB = "ATOM %6d  %-3s %3s %1s %3d" + \
-                  "%11.3f %7.3f %7.3f %5.2f %5.2f %10s%1s\n"
-            pdb.write("TITLE %s\n" % (title))
-            pdb.write("MODEL 1\n")
-            for atom in self.atoms:
-                pdb.write(atom.as_pdb())
-            pdb.write("TER\n")
-            for conect in self.conects:
-                pdb.write("CONECT %4d" % (conect.index))
-                for bond in conect.bonded:
-                    pdb.write(" %4d" % (bond))
-                pdb.write("\n")
-                
+        from io import TextIOWrapper
 
-    def as_gro(self, filename, title="Aligned molecule"):
+        assert type(des) == TextIOWrapper, \
+            "PDB destination 'des' must be of type TextIOWrapper."
+
+        PDB = "ATOM %6d  %-3s %3s %1s %3d" + \
+                "%11.3f %7.3f %7.3f %5.2f %5.2f %10s%1s\n"
+        des.write("TITLE %s\n" % (title))
+        des.write("MODEL 1\n")
+        for atom in self.atoms:
+            des.write(atom.as_pdb())
+        des.write("TER\n")
+        for conect in self.conects:
+            des.write("CONECT %4d" % (conect.index))
+            for bond in conect.bonded:
+                des.write(" %4d" % (bond))
+            des.write("\n")
+
+
+    def as_gro(self, filename, title = "Molecule"):
         """
         Export this molecule information in GRO format.
         """
@@ -529,6 +539,12 @@ class Atom:
             self.y, self.z, self.mass, self.charge,
             " ", self.elem[0])
 
+    def xyz(self):
+        """
+        Return the Atom coordinates in [X, Y, Z] format.
+        """
+
+        return [self.x, self.y, self.z]
 
     def __str__(self):
         return self.as_pdb()
