@@ -29,6 +29,25 @@ from ze_utils.pyrosetta_tools import \
 # starting positions simulations in sequential order, individual slurm bash
 # scripts will be automatically created and run, spawning 'n_decoys' processes
 # that will each be in charge of one of the decoys for each simulation.
+#
+#  The multi_dock.py script will create or overwrite N dock folders, where N is
+# the number of points on the DockingGrid, containing:
+#
+#  1) For each dock 'dock_n/', where n is the current docking point:
+#   start_n.pdb         : This dock starting position, on the grid
+#
+#  2) For every decoy on every dock, where d is the current decoy:
+#   n_d.sh              : The slurm launching bash script*
+#   n_d_pre_filter.json : The JSON file with the pre filter parameters*
+#   n_d.err             : The SLURM standard error receiver*
+#   n_d.out             : The SLURM standard output receiver*
+#   n_d_status.txt      : Holds current simulation step
+#   n_d_energy.dat      : Holds accepted steps energy data
+#   n_d_data.json       : Holds all steps pre filter acceptance/rejection data
+#
+#  3) For every accepted step on every decoy, where s is the current step:
+#   n_d_s.pdb           : The new proposed and accepted structure
+#   n_d_s.txt           : The PyMOL selection for the designed region
 
 
 class DEFAULT:
@@ -101,7 +120,7 @@ if __name__ == "__main__":
     pose           = pose_from_pdb(args.input_file)
     score_function = get_fa_scorefxn()
 
-    # load_pre_filter returns a default PreFilter if no JSON file is provided
+    # 'load_pre_filter' returns a default PreFilter if no JSON file is provided
     # Any changes to single default values can be made after the loading of the
     # pre filter.
     pre_filter = load_pre_filter(args.pre_filter)
@@ -124,11 +143,14 @@ if __name__ == "__main__":
     dg = DockingGrid(grid_center,
         (10, 40), (2, 8), (20, 20), 4, 3, 4, [centroidC])
 
-    # Print to a configuration file the initial conditions of the simulation
-    # (number of docks, decoys and steps) and initial total score of the pose
+    # Print to a configuration file the initial conditions of the simulation:
+    #  Line 1 : Number of docks, decoys and steps
+    #  Line 2 : Initial total score of the pose
+    #  Line 3 : Initial conformation file name
     with open("init.conf", "w") as conf:
         conf.write("%d %d %d\n" % (len(dg.points), args.n_decoys, args.n_steps))
-        conf.write("%f" % (score_function(pose)))
+        conf.write("%f\n" % (score_function(pose)))
+        conf.write("%s\n" % (args.input_file))
     
     # Orient the grid. In this case, the grid's X [1, 0, 0] axis should match
     # the orientation of the length of the ligand (this is the DE vector, where
