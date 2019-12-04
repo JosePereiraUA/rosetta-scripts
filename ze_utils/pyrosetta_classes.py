@@ -580,6 +580,128 @@ class DockingGrid:
                 file_out.write(a.as_pdb())
 
 
+class Fragment:
+    """
+    Holds a continuous fragment of a 'pose', defined as the the residues whose
+    ID on the corresponding PDB file are in the given 'ids' list (residue list
+    is automatically extracted). The lsit of 'ids' provided does not need to be
+    sequential (i.e: [1, 2, 3]), just as long as the the downstream connection
+    of residue i is the residue i + 1. Currently, this Fragment class should
+    be exclusively employed in loop appending using the self.append_to function.
+    """
+
+    def __init__(self, pose, ids):
+
+        from ze_utils.pyrosetta_tools import get_residues_from_selector, ID2Rank
+        from pyrosetta.rosetta.core.select.residue_selector import \
+            ResidueIndexSelector
+
+        self.pose = pose
+        self.ids = ids
+        
+        # The Fragment to be appended receives a list of IDs, as defined in the
+        # corresponding PDB file. However, ResidueIndexSelector works with rank,
+        # not with ID. Therefore, a dictionary converting the given ID's to the
+        # respective rank position in the pose must be created.
+        residues_selector = ResidueIndexSelector(ID2Rank(pose, ids))
+        self.residues = get_residues_from_selector(residues_selector, pose)
+
+        # Residues selected will be appended in a polymer (one after the other),
+        # in the exact given order. Therefore, in order to prevent unexpected
+        # results, all residues provided should be in a constinuous
+        # sequence/chain in the reference pose, where the downstream connection
+        # of residue i is always the residue i + 1.
+        for i in range(len(self.residues) - 1):
+            downstream_residue = self.residues[i].connected_residue_at_upper()
+            assert downstream_residue == ids[i + 1], \
+                "Residue %d is not the downstream residue of %d." % \
+                    (ids[i + 1], ids[i])
+
+
+    def append_to(self, pose, pos, backbone = "auto"):
+        """
+        Appends this fragment to a given 'pose', by attaching the sequence of
+        residues at the residue in 'pos' (this value should be the rank in the
+        pose, not the ID on the corresponding PDB file). A mode of backbone
+        construction can be provided. The following modes are available:
+         - stretched : All phi and psi angles are set to 180.0 degrees.
+         - alpha     : Phi and psi angles are set to ideal alpha helix values
+         - beta      : Phi and psi angles are set to ideal beta sheet values
+         - auto      : Phi, psi and omega angles are set to the orginal values
+                       in the fragment pose
+        """
+
+        assert type(pos) == int and pos > 0 and pos <= len(pose.sequence()), \
+            "'pos' must be an int between 0 and the number of residues in pose"
+
+        assert backbone in ["stretched", "alpha", "beta", "auto"], \
+            "backbone option must be set to stretched, alpha, beta or auto."
+
+        # Default values for non "auto" instructions.
+        angles = {
+            #              Phi     Psi     Omega
+            "stretched": [ 180.0,  180.0, 180.0],
+            "alpha":     [ -60.0,  -50.0, 180.0],
+            "beta":      [-140.0,  130.0, 180.0]
+        }
+
+        # Save anchor residue phi/psi/omega as in the reference pose. When
+        # appeding polymer residues, the anchor residues psi and omega angles\
+        # are modified (for some reason). Therefore, by saving the reference
+        # values, it's possible to fix this.
+        anchor_residue_index = self.residues[0].connected_residue_at_lower()
+        phi                  = self.pose.phi(  anchor_residue_index)
+        psi                  = self.pose.psi(  anchor_residue_index)
+        omega                = self.pose.omega(anchor_residue_index)
+        saved_angles         = [[phi, psi, omega]]
+
+        # To make iteration easier over the residues who require post-addition
+        # rotation of the phi, psi and omega angles, save all positions added to
+        # the pose
+        residues_to_modify = [pos]
+
+        # Add, one by one, the reference residues. Appended residues have, by
+        # default, weird phi, psi and omega values. Save the reference values or
+        # the new alpha, beta or stretched confromation values from 'angles'
+        # dictionary for post-addition rotation.
+        for residue in self.residues:
+
+            # If backbone is set to 'auto', save the phi, psi and omega angles
+            # to recover. However, the final conformation of the added residues
+            # will, sometimes, not perfectly match the given reference. This is
+            # because the appeding method for adding new residues to the pose
+            # sets 3 atom angles to be the default idealized value, and not the
+            # pre-existing value.
+            if backbone == "auto":
+                phi   = self.pose.phi(  residue.seqpos())
+                psi   = self.pose.psi(  residue.seqpos())
+                omega = self.pose.omega(residue.seqpos())
+                saved_angles.append([phi, psi, omega])
+
+            # If backbone is set to 'alpha', 'beta' or 'stretched', save the
+            # corresponding value from the 'angles' dictionary.
+            else:
+                saved_angles.append(angles[backbone])
+            
+            # Add this residue to the anchor position
+            pose.append_polymer_residue_after_seqpos(residue, pos, True)
+
+            # Update the anchor position, while marking this new residue for
+            # post-addition rotation of the phi, psi and omega angles
+            pos += 1
+            residues_to_modify.append(pos)
+
+        # Post-addition rotation. For some reason, when appeding a residue the
+        # previous residue on the chain has its psi and omega angles modified
+        # (to 150.0 and 0.0 degrees, respectively). Therefore, the rotation to
+        # the correct angles (either the reference of new alpha/beta/stretched
+        # values) is only performed after all residues have been appended.
+        for ang, r in zip(saved_angles, residues_to_modify):
+            pose.set_phi(  r, ang[0])
+            pose.set_psi(  r, ang[1])
+            pose.set_omega(r, ang[2])
+
+
 class ResidueToAtomMapping:
     """
     This simple class holds information regarding residue to atom mapping,
