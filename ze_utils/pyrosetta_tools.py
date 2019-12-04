@@ -35,6 +35,26 @@ def get_pymol_selection_from_selector(selector, pose):
     return selection[:-1] + " and %s" % (pose.pdb_info().name())
 
 
+def ID2Rank(pose, ids, as_string = True):
+    """
+    Returns a selection string (by default) with the rank positions in the pose
+    for the given list of residue IDs (from the PDB). This string can be used,
+    for example, on instances of ResidueIndexSelector. If 'as_string' is set to
+    False, return a list of rank positions instead.
+    """
+
+    id2rank = {}
+    for rank in range(1, len(pose.residues) + 1):
+        id2rank[int(pose.pdb_info().pose2pdb(rank).split()[0])] = rank
+    if as_string:
+        selection = ""
+        for i in ids:
+            selection += "%d," % (id2rank[i])
+        return selection[:-1]
+    else:
+        return [id2rank[i] for i in ids]
+        
+
 # def get_residues_pdb_format_from_selector(selector, pose):
 #     """
 #     Returns a list comprised of tuples each with the PDB Index and Chain
@@ -78,6 +98,46 @@ def get_residue_energies_from_selector(selector, pose, verbose = True):
     return energies
 
 
+def uncap(pose):
+    """
+    Remove all termini conformations of a pose, switching the atoms to normal
+    in-chain conformations.
+    """
+
+    from pyrosetta.rosetta.core.select.residue_selector import \
+        ResidueIndexSelector
+
+    # Identify all termini in the given pose
+    cap_indexes = ""
+    for residue in pose.residues:
+        if residue.is_terminus():
+            cap_indexes += "%d," % (residue.seqpos())
+    caps = ResidueIndexSelector(cap_indexes[:-1])
+
+    # Remove termini conformations for the selection in the given pose
+    uncap_selection(pose, caps)
+
+
+def uncap_selection(pose, selection):
+    """
+    Remove all termini conformations of a selection in the given pose, switching
+    the atoms to normal in-chain conformations.
+    """
+
+    from pyrosetta.rosetta.protocols.simple_moves import ModifyVariantTypeMover
+
+    # Create the ModifyVariantTypeMover, setting it up to remove the terminal
+    # variants in the caps defined in the ResidueIndexSelector
+    uncapper = ModifyVariantTypeMover()
+    uncapper.set_additional_type_to_remove("LOWER_TERMINUS_VARIANT")
+    uncapper.set_additional_type_to_remove("UPPER_TERMINUS_VARIANT")
+    uncapper.set_residue_selector(selection)
+    uncapper.set_update_polymer_bond_dependent_atoms(True)
+
+    # Apply the ModifyVariantTypeMover to the pose
+    uncapper.apply(pose)
+
+
 def get_cartesian_coordinates_from_pose(pose):
     """
     Return an (n, 3) matrix, where n is the number of atoms in the pose and 3
@@ -102,7 +162,7 @@ def get_cartesian_coordinates_from_selector(selector, pose):
 
     def count_atoms(_residues):
         count = 0
-        for residue in residues:
+        for residue in _residues:
             count += len(residue.atoms())
         return count
         
