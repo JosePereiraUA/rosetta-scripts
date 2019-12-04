@@ -318,7 +318,7 @@ class Molecule:
                 atom_list.remove(stack[0])
                 stack.pop(0)
             n_chains += 1
-            
+
         return n_chains
     
 
@@ -432,7 +432,6 @@ class Molecule:
             (len(movable_coords), len(reference_coords))
         
         # 2) Center on centroid
-        n                = len(self.atoms)
         c_movable        = np.mean(movable_coords, axis=0)
         c_reference      = np.mean(reference_coords, axis=0)
         movable_coords   = movable_coords   - c_movable
