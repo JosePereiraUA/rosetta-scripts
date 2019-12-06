@@ -1,176 +1,113 @@
-# import numpy as np
-# from ze_utils.molecule_manipulation import *
-# from ze_utils.algebra import \
-#     get_rotation_matrix_from_axis_angle, rotate_coords_from_rotation_matrix
-
-# reference = Molecule("3ch8_3p_rlx.pdb")
-# loop      = Molecule("placeholder10.pdb")
-
-# idx = [atom for atom in reference.atoms if atom.chain_name == "A"][-1].res_index
-# reference_mask = reference.get_mask_for_residue_indexes([idx])
-# loop_mask = loop.get_mask_for_residue_indexes([1])
-
-# masked_atoms = []
-# first = True
-# atoms, atom_indexes = loop.get_residue_atoms_from_indexes([1])
-# for index, atom in enumerate(atoms):
-#     if atom.elem == "H":
-#         if first:
-#             first = False
-#             continue
-#         masked_atoms.append(index)
-# for masked_atom in masked_atoms:
-#     loop_mask[atom_indexes[masked_atom]] = False
-
-# loop.align(reference, loop_mask, reference_mask)
-# loop.export("teste.pdb")
-
 from pyrosetta import *
-from pyrosetta.rosetta.core.chemical import *
-# from pyrosetta.rosetta.core.io.pdb import dump_pdb
-# from pyrosetta.rosetta.core.io import StructFileRepOptions
-from pyrosetta.rosetta.core.select.residue_selector import *
-# from pyrosetta.rosetta.protocols.grafting import delete_region
+from ze_utils.pyrosetta_classes import Fragment
+from ze_utils.pyrosetta_tools import uncap_selection
+from pyrosetta.rosetta.core.kinematics import FoldTree
+from pyrosetta.rosetta.core.pack.task import TaskFactory
 from ze_utils.pyrosetta_tools import get_residues_from_selector
-# from pyrosetta.rosetta.core.pose import declare_cutpoint_chemical_bond
-# from pyrosetta.rosetta.protocols.loops import Loop, add_single_cutpoint_variant
+from pyrosetta.rosetta.protocols.loop_modeler import LoopModeler
+from pyrosetta.rosetta.protocols.simple_task_operations import \
+    RestrictToLoopsAndNeighbors
+from pyrosetta.rosetta.protocols.loops import \
+    Loop, Loops, fold_tree_from_loops
+from pyrosetta.rosetta.core.select.residue_selector import \
+    ChainSelector, ResidueIndexSelector
+
+#           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
+
+#                        Loop Close-Design Script:
+# ______________________________________________________________________________
+#  Performs loop closure (using KIC protocol) with automatic design of the loop
+# aminoacids using the LoopModeler mover. The loop to add can be obtained from
+# an existing loop (from another pose), or generated from a string. Furthermore,
+# existing loops can be extended with additional residues at the C terminal.
+#
+#  How to append a new loop from a sequence:
+#
+#  This strategy can be employed to create a de-novo loop from scratch OR to
+# append extra residues at the end of a pre-existing reference loop in order to
+# accomodate the necessity for a bigger loop.
+#
+#  Build a dummy pose from the requested sequence. The pose should have one
+# extra residue in the beginning as the pose. This anchor aminoacid nature is
+# irrelevant, as only the backbone phi, psi and omega angles are necessary for
+# correct positioning. Moreover, if the loop is intended to be closed to another
+# part of the protein (i.e: is not a terminal loop), and in order to prevent
+# pyrosetta from automatically adding the terminal caps, thus
+# allowing for a correct loop closing, use the uncap_selection function in
+# ze_utils.pyrosetta_tools module.
+#
+# Example:
+# loop_pose = pose_from_sequence("A" * 7)
+# ids = list(range(2, len(loop_pose.sequence()) + 1))
+# loop = Fragment(loop_pose, ids)
+# loop.append_to(pose, anchor)
+#
+# For more information and similar scripts, please read:
+# https://graylab.jhu.edu/pyrosetta/downloads/scripts/test/T660_LoopBuilding.py
+# https://graylab.jhu.edu/pyrosetta/downloads/scripts/demo/D080_Loop_modeling.py
+# https://drive.google.com/drive/folders/1eRpTwwS7rHPoLYSLYIPVac6SvuiTVCNX
+
 init()
 
-# def reload_pose_from_file(pose):
 
-#     import os
-
-#     temporary_number = 0
-#     while True:
-#         filename = "tmp%d.pdb" % (temporary_number)
-#         if not os.path.exists(filename):
-#             pose.dump_pdb(filename)
-#             new_pose = pose_from_pdb(filename)
-#             with open(filename, "a") as file_out:
-#                 file_out.write("CONECT   90   99\n")
-#             os.system("rm -f %s" % (filename))
-#             return new_pose
-#         else:
-#             temporary_number += 1
-
-from pyrosetta.rosetta.protocols.simple_moves import ModifyVariantTypeMover
-from pyrosetta.rosetta.utility import vector1_unsigned_long
 pose = pose_from_pdb("candidate.pdb")
 
-cap_indexes = vector1_unsigned_long()
-cap_indexes.append(90)
-caps = ResidueIndexSelector(cap_indexes)
+# Define the anchor residue at which the new loop will be appended in chain A
+anchor_A = pose.chain_end(1)
 
-uncapper = ModifyVariantTypeMover()
-uncapper.set_additional_type_to_remove("LOWER_TERMINUS_VARIANT")
-uncapper.set_additional_type_to_remove("UPPER_TERMINUS_VARIANT")
-uncapper.set_residue_selector(caps)
-uncapper.set_update_polymer_bond_dependent_atoms(True)
+# Rebuild loop from original loop section. Currently loop definition needs to be
+# performed manually by defining each residue ID. A prototype automatic
+# identification function has been developed in ze_utils.other.identify_loops,
+# but without success.
+ref_pose = pose_from_pdb("clamshell.pdb")
+ids = [474, 475, 476, 477, 478, 479, 480, 481, 482]
+old_loop = Fragment(ref_pose, ids)
+old_loop.append_to(pose, anchor_A)
 
-uncapper.apply(pose)
-pose.dump_pdb("test.pdb")
+# Create the Loop object and add it to a Loops instance. A Loops instance is
+# basically a list of Loop objects, but is necessary for the CCD Mover. A loop
+# is automatically defined between the start - 1 and the end + 1 residues.
+loop =  Loop(anchor_A - 1, anchor_A + len(ids) + 1, anchor_A + len(ids))
+loops = Loops()
+loops.add_loop(loop)
 
-
-exit(1)
-# ----------------------------------------
-
-pose2 = pose_from_pdb("candidate.pdb")
-residue_name_to_recover = pose.residue(90).name1()
-t = pose.phi(91)
-# print("PHI 91: %f" % (pose.phi(91)))
-
-# print("PHI 89: %f" % (pose.phi(89)))
-# print("PSI 89: %f" % (pose.psi(89)))
-# print("OMEGA 89: %f" % (pose.omega(89)))
-phi_to_recover = pose.phi(90)
-psi_to_recover = pose.psi(90)
-omega_to_recover = pose.omega(90)
-
-delete_region(pose, 90, 90)
-
-residue_provider = pose_from_sequence("A" + residue_name_to_recover + "A")
-# residue_provider.set_phi(  2, phi_to_recover)
-# residue_provider.set_psi(  2, psi_to_recover)
-# residue_provider.set_omega(2, omega_to_recover)
-
-residue_to_recover = residue_provider.residue(2)
-pose.prepend_polymer_residue_before_seqpos(residue_to_recover, 90, True)
-# pose.set_phi(  91, t)
-
-print(pose2.fold_tree())
-# pose.fold_tree(FoldTree(pose2.fold_tree()))
+# Set-up the pose fold tree based on the Loop description
 fold_tree = FoldTree()
-fold_tree.add_edge(1, 81,  -1)
-fold_tree.add_edge(1, 82,   1)
-fold_tree.add_edge(82, 89, -1)
-fold_tree.add_edge(1, 92,   2)
-fold_tree.add_edge(92, 179, -1)
-fold_tree.add_edge(92, 90, -1)
-fold_tree.check_fold_tree()
-if not fold_tree.check_fold_tree(): exit(0)
+fold_tree_from_loops(pose, loops, fold_tree)
 pose.fold_tree(fold_tree)
-print(pose.fold_tree())
 
-pose.set_phi(91, t)
-pose.set_phi(  90, phi_to_recover)
-pose.set_psi(  90, psi_to_recover)
-pose.set_omega(90, omega_to_recover)
-# for i in range(1, len(pose.sequence())):
-#     pose.set_phi(i, pose2.phi(i))
-#     pose.set_psi(i, pose2.psi(i))
-#     pose.set_omega(i, pose2.omega(i))
+# Uncap the anchor residue at which the new loop will be appended in chain B
+# Uncapping means removing any atoms that wouldn't exist in a closed loop (such
+# as extra oxygens and hydrogens at C and N terminals, respectively), and
+# setting the correct pyrosetta variant. Variants are tags appended to residues.
+# By default, the LoopModeler can't perform the KIC protocol if the variant is
+# set to NTermProteinFull or CTermProteinFull (marking terminals), for example.
+anchor_B = ResidueIndexSelector(pose.chain_begin(2))
+uncap_selection(pose, anchor_B)
 
-# print("T:", t)
-# print("PHI 89: %f" % (pose.phi(89)))
-# print("PSI 89: %f" % (pose.psi(89)))
-# print("OMEGA 89: %f" % (pose.omega(89)))
+# LoopModeler can receive a task_factory instructing the mover to perform design
+# efforts while closing the looping. The task factory needs to be populated with
+# operations, such as the RestrictToLoopsAndNeighbors. We can set this operation
+# to design the loop and repack the neighbours in a 9 angstrom cutoff.
+task_factory = TaskFactory()
+loop_op = RestrictToLoopsAndNeighbors()
+loop_op.set_include_neighbors(True)
+loop_op.set_design_neighbors(False)
+loop_op.set_design_loop(True)
+loop_op.set_cutoff_distance(9)
+loop_op.set_loops(loops)
+task_factory.push_back(loop_op)
 
-# pose.set_phi(91, t)
-# print("PHI 91 %f" % (pose.phi(91)))
-pose.dump_pdb("teste2.pdb")
-exit(1)
-# pose.residue(90).type().remove_variant_type(LOWER_TERMINUS_VARIANT)
-# pose.residue(91).type().properties().set_property(LOWER_TERMINUS, False)
-# print(pose.residue(90).show())
-# print(pose.residue(91).show())
-# pose.dump_pdb("teste.pdb")
-# exit(1)
-residue_provider = pose_from_sequence("A" + "A" * 10 + "A")
+# The LoopModeler mover is comprised of 3 stages:
+#  - Build Stage: attempts to close the loop as is;
+#  - Centroid Stage: uses centroid mode to sample the conformational space and
+# find the lowest energy position for each aminoacid on the loop;
+#  - Fullatom Stage: returns the pose to full atom for high resolution
+# refinement. During this stage, the sidechains can be repacked and designed.
+loop_modeler = LoopModeler()
+loop_modeler.set_loops(loops)
+loop_modeler.set_task_factory(task_factory)
 
-# Get last residue in chain A
-chain_A = ChainSelector("A")
-last_chain_A_res_index = get_residues_from_selector(chain_A, pose)[-1].seqpos()
-for res_index in range(2, 11):
-    res = residue_provider.residue(res_index)
-    pose.append_polymer_residue_after_seqpos(res, last_chain_A_res_index, True)
+loop_modeler.apply(pose)
 
-    pose.set_phi(  last_chain_A_res_index, 180.0)
-    pose.set_psi(  last_chain_A_res_index, 180.0)
-    pose.set_omega(last_chain_A_res_index, 180.0)
-
-    last_chain_A_res_index += 1
-
-pose = reload_pose_from_file(pose)
-
-# chain_C = ChainSelector("C")
-# my_loop = Loop(80, 100, 90)
-# add_single_cutpoint_variant(pose, my_loop)
-
-# connect_A = get_residues_from_selector(chain_A, pose)[-1].seqpos()
-# pose.residue(connect_A).type().remove_variant_type(UPPER_TERMINUS_VARIANT)
-
-# connect_B = get_residues_from_selector(chain_C, pose)[ 0].seqpos()
-# pose.residue(connect_B).type().remove_variant_type(LOWER_TERMINUS_VARIANT)
-
-# pose = reload_pose_from_file(pose)
-
-# declare_cutpoint_chemical_bond(pose, connect_B, connect_A)
-# correctly_add_cutpoint_variants(pose, connect_A, connect_B)
-# pose.dump_pdb("test.pdb")
-
-
-
-# options = StructFileRepOptions()
-# options.set_max_bond_length(9999.9)
-# options.set_write_all_connect_info(True)
-# dump_pdb(pose, "test.pdb", options)
+pose.dump_pdb("design.pdb")
