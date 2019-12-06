@@ -132,16 +132,16 @@ if __name__ == "__main__":
     centroidA = get_centroid_coordinates_from_selector(ChainSelector("A"), pose)
     centroidB = get_centroid_coordinates_from_selector(ChainSelector("B"), pose)
     centroidC = get_centroid_coordinates_from_selector(ChainSelector("C"), pose)
-    bc_distance = np.linalg.norm(centroidC - centroidB)
-    ab_normal = (centroidB - centroidA) / np.linalg.norm(centroidB - centroidA)
-    grid_center = centroidB + bc_distance * ab_normal
+    cb_distance = np.linalg.norm(centroidB - centroidC)
+    ac_normal = (centroidC - centroidA) / np.linalg.norm(centroidC - centroidA)
+    grid_center = centroidC + cb_distance * ac_normal
 
     # Create the grid around the calculated grid center. The hardcoded values on
     # this script constitute a default docking grid, but can be freely modified.
     # Check the DockingGrid class docstring for more detailed information on how
     # to do this.
     dg = DockingGrid(grid_center,
-        (10, 40), (2, 8), (20, 20), 4, 3, 4, [centroidC])
+        (10, 40), (2, 8), (20, 20), 4, 3, 4, [centroidB])
 
     # Print to a configuration file the initial conditions of the simulation:
     #  Line 1 : Number of docks, decoys and steps
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     # ligand), therefore locking 2 of the 3 rotation degrees of freedom of the
     # grid. The third rotation degree of freedom will be left at the original
     # state (matching the natural axis). 
-    lig_res = get_residues_from_subset(ChainSelector("B").apply(pose))
+    lig_res = get_residues_from_subset(ChainSelector("C").apply(pose))
     D = np.array(pose.residue(list(lig_res)[0]).atom(2).xyz())
     E = np.array((pose.residue(list(lig_res)[len(lig_res) - 1]).atom(2).xyz()))
     de_normal = (E - D) / np.linalg.norm(D - E)
@@ -166,6 +166,7 @@ if __name__ == "__main__":
 
     # Ex. Print the current docking grid starting points in PDB format.
     dg.as_pdb("grid.pdb")
+    exit(1)
 
     # Looping over the number of points in the docking grid, move the Chain C
     # of the target protein to the new positions and run the simultaneous

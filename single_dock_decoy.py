@@ -16,20 +16,24 @@ from ze_utils.pyrosetta_classes import PASSO
 # essentially assumes that the protein is split in three different chains on the
 # input PDB file. Those parts should be defined as follows:
 #  - Chain A: (Fixed) Fixed part of the protein (PBZ, in this example);
-#  - Chain B: (Fixed) Target peptide ligand around which the interface will be 
-# defined;
-#  - Chain C: (Movable) Movable part of the protein, which will be subject to
+#  - Chain B: (Movable) Movable part of the protein, which will be subject to
 # the pseudo docking process (random movement + design);
+#  - Chain C: (Fixed) Target peptide ligand around which the interface will be 
+# defined;
 #
-#  Furthermore, the linker loop between any of this regions can (and should) be
-# removed. This model can be set-up using the 'ze_utils.molecule_manipulation'
-# module, by manually setting the chains between a range of consecutive residues
-# and deleting the loop residues, as follows:
+#  Furthermore, in order to recreate the existing loop (or a new one), the order
+# of the chains is important, and should be respected: A -> B -> C. In order to
+# maintain the fold_tree coherence and minimize unexpected errors, all chains
+# must be continuous (not have intra-chain breaks such as AAAA-B-AAAA).
+#  The linker loop between any of this regions can (and should) be removed. This
+# model can be set-up using the 'ze_utils.molecule_manipulation' module, by
+# manually setting the chains between a range of consecutive residues and
+# deleting the loop residues, as follows:
 #
 # pdb = Molecule("input.pdb")             # Load structure
 # pdb.set_chain_from_range('A', 376, 473) # Set Chain A
-# pdb.set_chain_from_range('B',   1,   7) # Set Chain B
-# pdb.set_chain_from_range('C', 483, 572) # Set Chain C
+# pdb.set_chain_from_range('B', 483, 572) # Set Chain B
+# pdb.set_chain_from_range('C',   1,   7) # Set Chain C
 # pdb.remove_residues_in_range(474, 482)  # Remove atoms in the loop region
 # pdb.sort_residues_by_chain()            # (Optional) Renumber all residues
 # pdb.print_structure("output.pdb")       # Save edited structure
@@ -38,17 +42,23 @@ from ze_utils.pyrosetta_classes import PASSO
 # the chains are deterministically separated in the CONECT records of the input
 # PDB file:
 #
-# pdb = Molecule("3ch8_rlx.pdb")            # Load structure
-# pdb.define_chains_from_connections("ACB") # Automatically identify chains
-# pdb.sort_residues_by_chain()              # (Optional) Renumber all residues
-# pdb.remove_residues_in_range(90, 108)     # Remove atoms in the loop region
-# pdb.print_structure("3ch8_3p_rlx.pdb")    # Save edited structure
+# pdb = Molecule("input.pdb")            # Load structure
+# pdb.remove_residues_in_range(474, 482) # Remove atoms in the loop region
+# pdb.define_chains_from_connections()   # Automatically identify chains
+# pdb.renumber_residues()                # (Optional) Renumber all residues
+# pdb.export("output.pdb")               # Save edited structure
 #
-# Note: Pyrosetta automatically caps these new terminals where the loop was.
+# Note: By renumbering the residues, the missing loop anchors will have
+# a different index.
+# 
+# Note: Pyrosetta automatically caps these new terminals where the loop was. In
+# order to uncap the terminals, check 'uncap' and 'uncap_selection' functions
+# in ze_utils.pyrosetta_tools module.
 #
 #    THIS SCRIPT PERFORMS ONLY ONE DECOY ON THE PASSO PROTOCOL.
 #  > Check single_dock.py script for multiple decoy PASSO simulation
 #  > Check multi_dock.py script for multiple starting positions PASSO simulation
+#  > Check loop.py for loop rebuilding/design
 #
 # For more information and similar scripts, please read:
 # https://graylab.jhu.edu/pyrosetta/downloads/scripts/demo/D100_Docking.py
@@ -80,8 +90,9 @@ def single_dock_decoy(input_file, output_prefix, n_steps, pre_filter = "auto"):
     "auto" will use the default filter).
     """
 
-    assert input_file[:-4] == ".pdb", \
-        "Input file for PASSO protocol must be in PDB format."
+    assert input_file[-4:] == ".pdb", \
+        "Input file for PASSO protocol must be in PDB format (in in %s)." % \
+            (input_file[-4:])
 
     # Load the pose and the score function
     pose = pose_from_pdb(input_file)

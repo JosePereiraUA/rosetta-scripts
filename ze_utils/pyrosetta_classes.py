@@ -11,24 +11,24 @@ class PreFilter:
      number of clashes must be inferior to 'clashes_max_count'.)
 
      . Number of contacts (defined the number of residue pairs between 'sel_B'
-     and 'sel_C' whose distance is inferior to the defined 'contact_cutoff'.
-     This number should be higher than the 'clash_cutoff'. Therefore, the number
-     of clashes are also contemplated in the contacts, and are thus removed.
-     The number of contacts must be superior to the 'contact_min_count'.)
+     and 'sel_C' whose distance is inferior to the defined 'contact_cutoff' but
+     superior to the defined 'clash_cutff'. This number should, therefore, be
+     higher than the 'clash_cutoff'. The number of contacts must be superior to
+     the 'contact_min_count'.)
 
      . Distance of the anchors (defined as the euclidean distance between two
      atoms in the pose. This atoms correspond to the possible attachment points
-     for a loop unityng the two regions defined in 'sel_A' and 'sel_C'. This
+     for a loop unityng the two regions defined in 'sel_A' and 'sel_B'. This
      distance must be inferior to 'anchors_cutoff'.
 
-     . If set to True, both the N and C terminals of the ligand/sel_B (chain B
+     . If set to True, both the N and C terminals of the ligand/sel_C (chain C
      in the ABC Model, by default) can have their blocking prevented. This means
      that a 'max_terminal_interaction' value can be set, which will be surpassed
-     in the case of that terminal being blocked by the moving part/sel_C (chain
-     C in the ABC model, by default), in which case the filter condition will
+     in the case of that terminal being blocked by the moving part/sel_B (chain
+     B in the ABC model, by default), in which case the filter condition will
      return False. The considered interaction is the absolute value of the
      InteractionEnergyMetric (since it should consider both favourable and 
-     disruptive interactions). If preventing block in one of more terminals, a
+     disruptive interactions). If preventing block in one or more terminals, a
      score_function needs to be provided. If set to "auto", score function will
      be set using the get_fa_scrofxn() function.
 
@@ -110,7 +110,7 @@ class PreFilter:
 
         
         # Create distance table for pose
-        d_table = calc_d_table_between_selectors(self.sel_B, self.sel_C, pose)
+        d_table = calc_d_table_between_selectors(self.sel_C, self.sel_B, pose)
         
         # Count the number of clashes
         clashes = len(d_table[d_table < self.clash_cutoff])
@@ -138,7 +138,7 @@ class PreFilter:
         upstream_res         = upstream_residues[-1]
         anchor_A             = upstream_res.atom("N")
 
-        downstream_residues  = get_residues_from_selector(self.sel_C, pose)
+        downstream_residues  = get_residues_from_selector(self.sel_B, pose)
         downstream_res       = downstream_residues[0]
         anchor_B             = downstream_res.atom("C")
 
@@ -155,15 +155,15 @@ class PreFilter:
             data["distance"] = (distance, True)
 
         # Verify if terminals are blocked. This function assumes the ABC Model
-        # and that the sequence of the ligand (chain B) goes from N terminal
+        # and that the sequence of the ligand (chain C) goes from N terminal
         # first to C terminal last.
-        lig = get_residues_from_selector(self.sel_B, pose)
+        lig = get_residues_from_selector(self.sel_C, pose)
 
         # N Terminal
         if self.prevent_block_N_terminal:
             self.score_function(pose)
             n_terminal = ResidueIndexSelector(lig[0].seqpos())
-            ie = InteractionEnergyMetric(n_terminal, self.sel_C)
+            ie = InteractionEnergyMetric(n_terminal, self.sel_B)
             n_terminal_interaction = abs(ie.calculate(pose))
             if n_terminal_interaction > self.max_n_terminal_interaction:
                 data["n_terminal"] = (n_terminal_interaction, False)
@@ -177,7 +177,7 @@ class PreFilter:
         if self.prevent_block_C_terminal:
             self.score_function(pose)
             c_terminal = ResidueIndexSelector(lig[-1].seqpos())
-            ie = InteractionEnergyMetric(c_terminal, self.sel_C)
+            ie = InteractionEnergyMetric(c_terminal, self.sel_B)
             c_terminal_interaction = abs(ie.calculate(pose))
             if c_terminal_interaction > self.max_c_terminal_interaction:
                 data["c_terminal"] = (c_terminal_interaction, False)
@@ -221,9 +221,9 @@ class PASSO:
     the movable region) and 'repackable' (target ligand) ResidueSelector must
     still be provided, as they are used in calculating the interaction energy
     between this two sets. By default (by setting this parameters to "auto"),
-    the 'repackable' region will be the chain B and the 'designable' region will
-    be the set of residues on chain C closer than a 9 ansgtrom cutoff from the
-    chain B.
+    the 'repackable' region will be the chain C and the 'designable' region will
+    be the set of residues on chain B closer than a 9 ansgtrom cutoff from the
+    chain C.
     By default (by setting this parameter to "auto"), the 'score_function' is
     obtained via get_fa_scorefxn().
 
@@ -265,10 +265,10 @@ class PASSO:
         if designable == "auto":
             self.designable = AndResidueSelector(
                 NeighborhoodResidueSelector(
-                    ChainSelector("B"),
+                    ChainSelector("C"),
                     9.0,
                     include_focus_in_subset = False),
-                ChainSelector("C"))
+                ChainSelector("B"))
         else:
             self.designable = designable
 
@@ -276,7 +276,7 @@ class PASSO:
         assert isinstance(repackable, ResidueSelector) or repackable == "auto",\
             "Repackable selection must be a ResidueSelector or set to 'auto'"
         if repackable == "auto":
-            self.repackable = ChainSelector("B")
+            self.repackable = ChainSelector("C")
         else:
             self.repackable = repackable
 
@@ -613,8 +613,9 @@ class Fragment:
         # of residue i is always the residue i + 1.
         for i in range(len(self.residues) - 1):
             downstream_residue = self.residues[i].connected_residue_at_upper()
-            assert downstream_residue == ids[i + 1], \
-                "Residue %d is not the downstream residue of %d." % \
+            downstream_id = ID2Rank(pose, [ids[i + 1]], as_string = False)[0]
+            assert downstream_residue == downstream_id, \
+                "Residue %d is not the downstream residue of residue %d." % \
                     (ids[i + 1], ids[i])
 
 

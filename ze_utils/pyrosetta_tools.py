@@ -53,7 +53,7 @@ def ID2Rank(pose, ids, as_string = True):
         return selection[:-1]
     else:
         return [id2rank[i] for i in ids]
-        
+
 
 # def get_residues_pdb_format_from_selector(selector, pose):
 #     """
@@ -263,38 +263,107 @@ def calc_d_table_between_selectors(selector1, selector2, pose):
     return d_table
 
 
+def travel_connectivity_map(pose, start):
+    """
+    Recursively travel the connectivity map, starting on residue 'start', and
+    return all residues visited. Assumes a non-branched linear chain.
+    """
+
+    def travel(index):
+        if index == 0:
+            return
+        chain.append(index)
+        travel(pose.residue(index).connected_residue_at_upper())
+
+    chain = []
+    travel(start)
+
+    return chain
+        
+
+def smart_fold_tree_cut(fold_tree, pos):
+    """
+    Creates a cut on the 'fold_tree' as the given 'pos'. This separates the
+    existing edge into two unconnected ones, with a jump from residue 1 to the
+    residue at 'pos' + 1.
+    """
+
+    # Obtain old boundaries to define the new pose
+    bl = fold_tree.boundary_left(pos)
+    br = fold_tree.boundary_right(pos)
+
+    # Obtain the number of existing jumps. The new jump will be set between
+    # residue 1 and the given position + 1 residue
+    n  = fold_tree.num_jump() + 1
+
+    # Delete the old edge where the new cut will be placed
+    fold_tree.delete_edge(fold_tree.get_residue_edge(pos))
+
+    # Create the new 2 edges (one on each side of the cut) and the jump
+    fold_tree.add_edge(    bl,      pos, -1)
+    fold_tree.add_edge(      1, pos + 1,  n)
+    fold_tree.add_edge(pos + 1,      br, -1)
+
+
 def set_ABC_model_fold_tree(pose):
         """
         Sets the ABC model fold tree on a given 'pose'. This model states that:
-         1) chains A and B of the pose are a single EDGE on the fold tree;
-         2) there is one JUMP between chain B and C;
-         3) chain C is a single EDGE on the fold tree;
+         1) All chains of the pose are a single EDGE on the fold tree;
+         2) there is two JUMPs between residue 1 and the first residue of both
+         chain B and C;
+
+        Note: If the model PDB has been correctly produced, this should be the
+        default fold_tree inferred by pyrosetta. This function additionally
+        performs several checks to validate the model. 
         """
         
         from pyrosetta import FoldTree
         from pyrosetta.rosetta.core.select.residue_selector import \
             ChainSelector, OrResidueSelector
 
-        chainA = ChainSelector("A")
-        chainB = ChainSelector("B")
-        chainC = ChainSelector("C")
-        chainAB = OrResidueSelector(chainA, chainB)
+        # Verify is the ABC Model is being respected:
+        # 1) Should have 3 and only 3 chains
+        assert pose.num_chains() == 3, \
+            "ABC Model in pose should have 3 chains: A, B and C."
 
-        # First atom of chain A
-        fA = 1
+        # 2) All chains should be continuous (have no intra-chain breaks)
+        def verify_chain_coherence(chain_index):
+            """
+            Asserts if it is possible to travel the connectivity map of a chain
+            from the first residue and reach the end of the chain, therefore
+            lacking breaks.
+            """
+
+            chain_res_indexes = travel_connectivity_map(
+                pose, pose.chain_begin(chain_index))
+            for idx in chain_res_indexes:
+                pdb_idx = int(pose.pdb_info().pose2pdb(idx).split()[0])
+                assert pdb_idx == idx, \
+                    "Chain %s seems to have intra-chain break at residue %d" % \
+                        (pose.pdb_info().chain(chain_index), pdb_idx)
+
+        for chain_index in range(1, pose.num_chains() + 1):
+            verify_chain_coherence(chain_index)
         
-        atoms_chainAB = chainAB.apply(pose)
-        lB = len([x for x in atoms_chainAB if x == 1])
-        atoms_chainC = chainC.apply(pose)
-        atom_indexes_chainC = [i for i, x in enumerate(atoms_chainC) if x == 1]
-        fC = atom_indexes_chainC[0] + 1
-        lC = atom_indexes_chainC[len(atom_indexes_chainC) - 1] + 1
-        
+        # 3) The 3 chains should be A, B and C, in order
+        assert pose.pdb_info().chain(pose.chain_begin(1)) == 'A', \
+            "First chain should be A."
+        assert pose.pdb_info().chain(pose.chain_begin(2)) == 'B', \
+            "Second chain should be B."
+        assert pose.pdb_info().chain(pose.chain_begin(3)) == 'C', \
+            "Third chain should be C."
+
+        # Create and empty fold tree
         fold_tree = FoldTree()
-        fold_tree.add_edge(fA, lB, -1)
-        fold_tree.add_edge(lB, fC,  1)
-        fold_tree.add_edge(fC, lC, -1)
-        if not fold_tree.check_fold_tree(): exit(0)
+
+        # Set the fold tree to be one constinuous edge across the whole pose
+        fold_tree.simple_tree(len(pose.residues))
+
+        # Cut the single edge separating each of the defined chains
+        smart_fold_tree_cut(fold_tree, pose.chain_end(1))
+        smart_fold_tree_cut(fold_tree, pose.chain_end(2))
+
+        # Apply the new fold tree to the pose
         pose.fold_tree(fold_tree)
 
 

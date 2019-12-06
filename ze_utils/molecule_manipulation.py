@@ -216,11 +216,14 @@ class Molecule:
                 atom.chain_name = chain_name
 
 
-    def remove_residues_in_range(self, range_start, range_end):
+    def remove_residues_in_range(self, range_start, range_end,
+        renumber_atoms = True):
         """
         Iterate over all atoms in the molecule. Remove atoms whose res_index is
         on the range defined between 'range_start' and 'range_end' (both 
-        parameters should be integers).
+        parameters should be integers). Additionally, remove all conect records
+        involving said atoms. If 'renumber_atoms' is set to True (by default),
+        renumber all atoms to compensate for the missing residues (recommended).
         """
 
         assert type(range_start) == int, \
@@ -228,23 +231,46 @@ class Molecule:
         assert type(range_end) == int, \
             "Range end should be an integer."
 
+        # Atoms cannot be deleted during iteration, it would cause problems
+        # where the length of the iterated list changes during the iteration.
+        # Identified atoms for removal are marked in a list of later removal,
+        # as well as the corresponding conect records.
         to_remove = []
+
         for (index, atom) in enumerate(self.atoms):
             if atom.res_index >= range_start and atom.res_index <= range_end:
                 to_remove.append(index)
+
+                # If conect records exist, remove all instances of this atom in
+                # the conect records of neighbouring atoms
+                if len(self.conects) == 0:
+                    for bond in self.conects[index].bonded:
+                        this_atom_index = self.conects[index].index
+                        self.conects[bond - 1].bonded.remove(this_atom_index)
+
+        # Removal of marked atoms needs to be made from the end to the beginning
+        # to prevent change in the index of downstream atoms.
         to_remove.reverse()
         for index in to_remove:
             del self.atoms[index]
 
+        # If conect records exist, delete all instances of the masked atoms
+        if len(self.conects) > 0:
+            for index in to_remove:
+                del self.conects[index]
+
+        # Since atoms have been removed, it's recommended to renumber all atoms
+        if renumber_atoms:
+            self.renumber_atoms()
+
 
     def renumber_residues(self, start = 1):
         """
-        Renumber residues in molecule based on the current order, stating the
+        Renumber residues in molecule based on the current order, starting the
         count on integer 'start'.
         """
 
-        assert type(start) == int, \
-            "Starting value for renumbering must be an integer."
+        assert type(start) == int, "'start; value for must be an int."
 
         residue_index = start - 1
         current_residue = None
@@ -253,6 +279,24 @@ class Molecule:
                 current_residue = atom.res_index
                 residue_index += 1
             atom.res_index = residue_index
+
+
+    def renumber_atoms(self, start = 1):
+        """
+        Renumber atoms in molecule based on the current order, starting the
+        count on integer 'start'.
+        """
+
+        assert type(start) == int, "'start; value for must be an int."
+
+        conv = {}
+        for (index, atom) in enumerate(self.atoms, start = start):
+            conv[atom.index] = index
+            atom.index       = index
+
+        for conect in self.conects:
+            conect.index     = conv[conect.index]
+            conect.bonded    = [conv[bond] for bond in conect.bonded]
 
 
     def sort_residues_by_chain(self, renumber_residues = True):
@@ -277,7 +321,9 @@ class Molecule:
 
         # 3. Sort atoms based on the sorted list of chains
         atoms = []
+        print(chains)
         for chain in chains:
+            print("Chain:", chain)
             for atom in self.atoms:
                 if atom.chain_name == chain: atoms.append(atom)
         self.atoms = atoms
@@ -294,7 +340,7 @@ class Molecule:
         breaks in the connection tree. Each isolated tree of connections will
         correspond to a new chain. Return the number of chains identified.
         If 'overwrite' is set to True (yes, by default), actually change each
-        atom chain_name parameter to match the indetified chain. The order of
+        atom chain_name parameter to match the identified chain. The order of
         naming each chain is set by 'chain_id' parameter (alphabetical order,
         by default).
         """
@@ -314,6 +360,7 @@ class Molecule:
                     if connection in atom_list and connection not in stack:
                         stack.append(connection)
                 if overwrite:
+                    atom = self.atoms[stack[0] - 1]
                     self.atoms[stack[0] - 1].chain_name = chain_id[n_chains]
                 atom_list.remove(stack[0])
                 stack.pop(0)
