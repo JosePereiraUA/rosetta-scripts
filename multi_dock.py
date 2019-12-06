@@ -166,19 +166,18 @@ if __name__ == "__main__":
 
     # Ex. Print the current docking grid starting points in PDB format.
     dg.as_pdb("grid.pdb")
-    exit(1)
 
-    # Looping over the number of points in the docking grid, move the Chain C
+    # Looping over the number of points in the docking grid, move the Chain B
     # of the target protein to the new positions and run the simultaneous
     # position and design optimization protocol on each one, asynchronously.
     p = Pose()
     for point_id in range(len(dg.points)):
-        # Create a copy of the original position of the Chain C of the target
+        # Create a copy of the original position of the Chain B of the target
         # protien.
         p.assign(pose)
-        # Translate the chain C from the original position to the new position
+        # Translate the chain B from the original position to the new position
         # defined the the grid point.
-        dg.translate_selector_to_point(point_id, ChainSelector("C"), p)
+        dg.translate_selector_to_point(point_id, ChainSelector("B"), p)
 
         # Sabe this new starting position in it's own folder. Will overwrite any
         # old data in such folder.
