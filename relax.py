@@ -133,5 +133,26 @@ if __name__ == "__main__":
         fast_relax.apply(p)
         job_manager.output_decoy(p)
 
-    # Is required for the SLURM to know when to stop the spawned process.
-    exit(0)
+
+#             A U X I L I A R Y   F U N C T I O N S
+# ______________________________________________________________________________
+# 
+# Minimalistic version of the above script.
+# Aimed to be called from other scripts.
+
+def relax(pose, no_constraints = True):
+    score_function = get_fa_scorefxn()
+    if no_constraints == False:
+        coordinates_constraint = CoordinateConstraintGenerator()
+        constraints = AddConstraints()
+        constraints.add_generator(coordinates_constraint)
+        constraints.apply(pose)
+        activate_constraints(score_function, args.c_weight)
+    task_factory = standard_task_factory()
+    task_factory.push_back(ExtraRotamers(0, 2, 1))
+    task_factory.push_back(RestrictToRepacking())
+    task_factory.push_back(IncludeCurrent())
+    fast_relax = FastRelax()
+    fast_relax.set_scorefxn(score_function)
+    fast_relax.set_task_factory(task_factory)
+    fast_relax.apply(pose)
