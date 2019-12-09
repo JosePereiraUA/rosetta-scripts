@@ -1,3 +1,5 @@
+import argparse
+from relax import relax
 from pyrosetta import *
 from ze_utils.pyrosetta_classes import Fragment
 from ze_utils.pyrosetta_tools import uncap_selection
@@ -20,6 +22,10 @@ from pyrosetta.rosetta.core.select.residue_selector import \
 # aminoacids using the LoopModeler mover. The loop to add can be obtained from
 # an existing loop (from another pose), or generated from a string. Furthermore,
 # existing loops can be extended with additional residues at the C terminal.
+#  This script assumes the ABC model, so the loop will be added between the end
+# of chain A and the beginning of chain B. Read the dosctrings and documentation
+# of the single_dock_decoy.py script for more information on how to set up this
+# model.
 #
 #  How to append a new loop from a sequence:
 #
@@ -47,67 +53,130 @@ from pyrosetta.rosetta.core.select.residue_selector import \
 # https://graylab.jhu.edu/pyrosetta/downloads/scripts/demo/D080_Loop_modeling.py
 # https://drive.google.com/drive/folders/1eRpTwwS7rHPoLYSLYIPVac6SvuiTVCNX
 
-init()
+
+class DEFAULT:
+    """
+    Define defaults for the script. Values can be modified using arguments.
+    """
+    cut_off       = 9.0
+    n_decoys      = 10
+    output_prefix = "relooped"
 
 
-pose = pose_from_pdb("candidate.pdb")
+def validate_arguments(args):
+    """
+    Validate the script arguments to prevent known input errors.
+    """
+    if not args.input_file[-4:] == ".pdb":
+        exit("ERROR: Input file should be in PDB format")
+    if args.cutoff < 0:
+        exit("ERROR: Cut-off must be a non-negative value")
+    if args.n_decoys < 0:
+        exit("ERROR: Number of decoys must be a non-negative value")
 
-# Define the anchor residue at which the new loop will be appended in chain A
-anchor_A = pose.chain_end(1)
 
-# Rebuild loop from original loop section. Currently loop definition needs to be
-# performed manually by defining each residue ID. A prototype automatic
-# identification function has been developed in ze_utils.other.identify_loops,
-# but without success.
-ref_pose = pose_from_pdb("clamshell.pdb")
-ids = [474, 475, 476, 477, 478, 479, 480, 481, 482]
-old_loop = Fragment(ref_pose, ids)
-old_loop.append_to(pose, anchor_A)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="""Design the active-site of a
+        protein surrousing a ligand defined in another chain, on the input
+        PDB.""")
+    parser.add_argument('input_file', metavar='INPUT', type=str,
+        help='The input PDB file')
+    parser.add_argument('-co', '--cutoff', metavar='', type=float,
+        help='Repack around loop in cut-off (in Å) (Default: %5.1f)' \
+            % (DEFAULT.cut_off), default = DEFAULT.cut_off)
+    parser.add_argument('-nd', '--n_decoys', metavar='', type=int,
+        help='Number of decoys (Default: %d)' % (DEFAULT.n_decoys),
+        default = DEFAULT.n_decoys)
+    parser.add_argument('-o', '--output', metavar='', type=str,
+        help='Output prefix (Default: %s)' % (DEFAULT.output_prefix),
+        default = DEFAULT.output_prefix)
 
-# Create the Loop object and add it to a Loops instance. A Loops instance is
-# basically a list of Loop objects, but is necessary for the CCD Mover. A loop
-# is automatically defined between the start - 1 and the end + 1 residues.
-loop =  Loop(anchor_A - 1, anchor_A + len(ids) + 1, anchor_A + len(ids))
-loops = Loops()
-loops.add_loop(loop)
+    args = parser.parse_args()
+    validate_arguments(args)
+    init()
 
-# Set-up the pose fold tree based on the Loop description
-fold_tree = FoldTree()
-fold_tree_from_loops(pose, loops, fold_tree)
-pose.fold_tree(fold_tree)
 
-# Uncap the anchor residue at which the new loop will be appended in chain B
-# Uncapping means removing any atoms that wouldn't exist in a closed loop (such
-# as extra oxygens and hydrogens at C and N terminals, respectively), and
-# setting the correct pyrosetta variant. Variants are tags appended to residues.
-# By default, the LoopModeler can't perform the KIC protocol if the variant is
-# set to NTermProteinFull or CTermProteinFull (marking terminals), for example.
-anchor_B = ResidueIndexSelector(pose.chain_begin(2))
-uncap_selection(pose, anchor_B)
+    pose = pose_from_pdb(args.input_file)
 
-# LoopModeler can receive a task_factory instructing the mover to perform design
-# efforts while closing the looping. The task factory needs to be populated with
-# operations, such as the RestrictToLoopsAndNeighbors. We can set this operation
-# to design the loop and repack the neighbours in a 9 angstrom cutoff.
-task_factory = TaskFactory()
-loop_op = RestrictToLoopsAndNeighbors()
-loop_op.set_include_neighbors(True)
-loop_op.set_design_neighbors(False)
-loop_op.set_design_loop(True)
-loop_op.set_cutoff_distance(9)
-loop_op.set_loops(loops)
-task_factory.push_back(loop_op)
+    # Set the anchor residue at which the new loop will be appended in chain A
+    anchor_A = pose.chain_end(1)
 
-# The LoopModeler mover is comprised of 3 stages:
-#  - Build Stage: attempts to close the loop as is;
-#  - Centroid Stage: uses centroid mode to sample the conformational space and
-# find the lowest energy position for each aminoacid on the loop;
-#  - Fullatom Stage: returns the pose to full atom for high resolution
-# refinement. During this stage, the sidechains can be repacked and designed.
-loop_modeler = LoopModeler()
-loop_modeler.set_loops(loops)
-loop_modeler.set_task_factory(task_factory)
+    # Rebuild loop from original loop section. Currently loop definition needs
+    # to be performed manually by defining each residue ID and the original PDB
+    # file, in this script. A prototype automatic identification function has
+    # been developed in ze_utils.other.identify_loops, but without success.
+    ref_pose = pose_from_pdb("clamshell.pdb")           # !
+    ids = [474, 475, 476, 477, 478, 479, 480, 481, 482] # !
+    old_loop = Fragment(ref_pose, ids)
+    old_loop.append_to(pose, anchor_A)
 
-loop_modeler.apply(pose)
+    # Create the Loop object and add it to a Loops instance. A Loops instance is
+    # basically a list of Loop objects, but is necessary for the CCD Mover. A
+    # loop is automatically defined between the start - 1 and the end + 1.
+    loop =  Loop(anchor_A - 1, anchor_A + len(ids) + 1, anchor_A + len(ids))
+    loops = Loops()
+    loops.add_loop(loop)
 
-pose.dump_pdb("design.pdb")
+    # Set-up the pose fold tree based on the Loop description
+    fold_tree = FoldTree()
+    fold_tree_from_loops(pose, loops, fold_tree)
+    pose.fold_tree(fold_tree)
+
+    # Uncap the anchor residue at which the new loop will be appended in chain B
+    # Uncapping means removing any atoms that wouldn't exist in a closed loop
+    # (such as extra oxygens and hydrogens at C and N terminals, respectively),
+    # and setting the correct pyrosetta variant. Variants are tags appended to
+    # residues. By default, the LoopModeler can't perform the KIC protocol if
+    # the variant is set to NTermProteinFull or CTermProteinFull (marking
+    # terminals), for example.
+    anchor_B = ResidueIndexSelector(pose.chain_begin(2))
+    uncap_selection(pose, anchor_B)
+
+    # LoopModeler can receive a task_factory instructing the mover to perform
+    # design efforts while closing the looping. The task factory needs to be
+    # populated with operations, such as the RestrictToLoopsAndNeighbors. We can
+    # set this operation to design the loop and repack the neighbours in a 9
+    # angstrom cutoff.
+    task_factory = TaskFactory()
+    loop_op = RestrictToLoopsAndNeighbors()
+    loop_op.set_include_neighbors(True)
+    loop_op.set_design_neighbors(False)
+    loop_op.set_design_loop(True)
+    loop_op.set_cutoff_distance(args.cutoff)
+    loop_op.set_loops(loops)
+    task_factory.push_back(loop_op)
+
+    # The LoopModeler mover is comprised of 3 stages:
+    #  - Build Stage: attempts to close the loop as is
+    #  - Centroid Stage: uses centroid mode to sample the conformational space
+    # and find the lowest energy position for each aminoacid on the loop
+    #  - Fullatom Stage: returns the pose to full atom for high resolution
+    # refinement. During this stage, the sidechains can be repacked and designed
+    # Any one of this stages can be disabled:
+    # Ex. loop_modeler.disable_fullatom_stage()
+    # Or limited to only a few steps (for example, for test purposes)
+    # Ex. loop_modeler.fullatom_stage().mark_as_test_run()
+    loop_modeler = LoopModeler()
+    loop_modeler.centroid_stage().mark_as_test_run()
+    loop_modeler.fullatom_stage().mark_as_test_run()
+    loop_modeler.set_loops(loops)
+    loop_modeler.set_task_factory(task_factory)
+
+    score_function = get_fa_scorefxn()
+    job_man = PyJobDistributor(args.output, args.n_decoys, score_function)
+    while not job_man.job_complete:
+        # This 'while' loop will run 'n_decoys' times, and the second time
+        # it runs it should start from the original pose, not the previously
+        # designed structure.
+        p = Pose(pose)
+        loop_modeler.apply(p)
+        relax(p)
+
+        # Change the reconnected chain B to be continuous with chain A. This
+        # prevents pyrosetta from trying to change the connection residue
+        # between the two chains to a terminal variant.
+        for index in range(1, len(p.residues)):
+            if p.pdb_info().chain(index) == 'B':
+                p.pdb_info().chain(index, 'A')
+
+        job_man.output_decoy(p)
