@@ -1,5 +1,10 @@
 #           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
 
+#  The objetive of this script is to provide a way for structure alignment
+# inside the PyRosetta framework. This alignment can be done over all the atoms
+# in the structure or a selected subset, given by a mask. Read bellow for more
+# information.
+
 import numpy as np
 
 def as_matrix(pose, mask = None):

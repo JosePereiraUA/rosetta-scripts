@@ -138,8 +138,7 @@ if __name__ == "__main__":
         default = DEFAULT.chain)
     parser.add_argument('-co', '--cutoff', metavar='', type=float,
         help='Active site identification cut-off in Å (Default: %5.1f)' \
-            % (DEFAULT.cut_off),
-        default = DEFAULT.cut_off)
+            % (DEFAULT.cut_off), default = DEFAULT.cut_off)
     parser.add_argument('-nd', '--n_decoys', metavar='', type=int,
         help='Number of decoys (Default: %d)' % (DEFAULT.n_decoys),
         default = DEFAULT.n_decoys)
