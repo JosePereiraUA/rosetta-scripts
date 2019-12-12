@@ -1,52 +1,116 @@
 import argparse
 from pyrosetta import *
-from pyrosetta.rosetta.protocols.relax import FastRelax
-from pyrosetta.rosetta.core.pack.task.operation import *
-from ze_utils.pyrosetta_tools import activate_constraints
-from pyrosetta.rosetta.protocols.constraint_generator import \
-	AddConstraints, CoordinateConstraintGenerator
-
-
-#           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
-
-#                            Relax Script:
-# ______________________________________________________________________________
-#  Perform an energy minimization.
-#  
-#  Necessary parts:
-# - Starting Pose;
-# - Score function;
-# - FastRelax (sucessive rounds of backbone and side-chain packing and
-#   minimization, where the repulsive weight in the scoring function is
-#   gradually increased. )
-#
-#  Optinal parts:
-# - Constraints (Add energy components that penalize certain conformations based
-#   on the defiden constraints. These can be, for example, restraints that lock 
-#   the backbone to the original position, try to approximate two residues, etc)
-#   In order for a Constraint to be correctly applied in a simulation, two steps
-#   are necessary:
-#   . Set the constraints in the pose (see bellow);
-#   . Enable all the constraint weights in the score function;
-#   There are two distinct constraint objects used to set constraints in a pose:
-#   . ConstraintMovers: Are the actual constraints. Can be applied to a pose.
-#   . ConstraintGenerators: Automatically generate ConstraintMovers, regardless
-#     of the pose they are applied to. Are usually more useful. In order to
-#     apply automatically generated constraints using a ConstraintGenerator, an
-#     AddConstraint object must be initialized, to which an arbitrary number of
-#     generators can be added and then all applied at once to all the desired
-#     poses. 
-# - TaskFactory (Used to enable extra rotamers to be sampled in the packing
-#   process. Is applied to the FastRelax object).
-# ______________________________________________________________________________
+from ze_utils.common import get_number_of_jobs_in_slurm_queue
+from relax_decoy import relax
+from ze_utils.common import overwrite_dir
 
 class DEFAULT:
     """
     Define defaults for the script. Values can be modified using arguments.
     """
-    n_decoys      = 100
-    c_weight      = 1.0
-    output_prefix = "relax"
+    n_decoys       = 100
+    c_weight       = 1.0
+    max_slurm_jobs = 499
+    output_prefix  = "relax"
+
+
+def dump_sbatch_script(output_name, input_file, no_constrains = False,
+    c_weight = 1.0, keep_bash = False):
+    """
+    """
+
+    bash_filename = "%s.sh" % (output_name)
+    with open(bash_filename, "w") as bash:
+        bash.write("#!/bin/bash\n")
+        bash.write("#SBATCH --partition=main\n")
+        bash.write("#SBATCH --ntasks=1\n")
+        bash.write("#SBATCH --cpus-per-task=1\n")
+        bash.write("#SBATCH --mem=4GB\n")
+        bash.write("#SBATCH --time=72:00:00\n")
+        bash.write("#SBATCH --requeue\n")
+        bash.write("#SBATCH --job-name=%s\n" % (output_name))
+        bash.write("#SBATCH --output=%s.out\n" % (output_name))
+        bash.write("#SBATCH --error=%s.err\n\n" % (output_name))
+        bash.write("python ~/scripts/relax_decoy.py %s" % (input_file))
+        bash.write(" -o %s" % (output_name))
+        
+        if no_constrains:
+            bash.write(" -nc -w %f" % (c_weight))
+        
+        # Auto-deletes the current bash script
+        if not keep_bash:
+            bash.write("\nrm -rf %s" % (bash_filename))
+
+
+def deploy_decoys_on_slurm(input_file, output_prefix, n_decoys,
+    no_constrains = False, c_weight = 1.0):
+    """
+    """
+
+    import os
+    import shutil
+
+    # The output and error files will be saved in the corresponding directory
+    overwrite_dir("out")
+    overwrite_dir("err")
+
+    # Print a template of the executed bash scripts, for archive purposes
+    output_name = "%s_%s" % (output_prefix, "template")
+    dump_sbatch_script(output_name, input_file, no_constrains, c_weight, True)
+
+    user = os.environ['USER']
+    for decoy_index in range(n_decoys):
+        
+        # 1) Create the single_relax.py sbatch script
+        output_name = "%s_%d" % (output_prefix, decoy_index)
+        dump_sbatch_script(output_name, input_file, no_constrains, c_weight)
+
+        # 2) Ping the user slurm queue for a vacant spot to deploy the job
+        while True:
+            n_jobs_on_slurm_queue = get_number_of_jobs_in_slurm_queue(user)
+
+            if n_jobs_on_slurm_queue <= DEFAULT.max_slurm_jobs:
+                os.system("sbatch %s" % ("%s.sh" % (output_name)))
+                break
+    
+    # 3) Yield until all decoys are completed
+    while True:
+        to_break = True
+        for decoy_index in range(n_decoys):
+            output_name = "%s_%d" % (output_prefix, decoy_index)
+            if os.path.exists("%s.sh" % (output_name)):
+                to_break = False
+                break
+        if to_break:
+            break
+
+    # 4) Create a custom .fasc file a posteriori
+    score_function = get_fa_scorefxn()
+    with open("%s_custom.fasc" % (output_prefix), "w") as fasc:
+        for decoy_index in range(n_decoys):
+            input_name = "%s_%d.pdb" % (output_prefix, decoy_index)
+            pose = pose_from_pdb(input_name)
+            fasc.write("""{"pdb_name": %s, "total_score": %f}\n""" % \
+                (input_name, score_function(pose)))
+            
+            # 5) Store the output and error files in the corresponding folders
+            shutil.move("%s_%d.err" % (output_prefix, decoy_index), "err")
+            shutil.move("%s_%d.out" % (output_prefix, decoy_index), "out")
+
+
+def deploy_decoys_on_pyjobdistributor(input_file, output_prefix, n_decoys,
+    no_constrains = False, c_weight = 1.0):
+    """
+    """
+
+    score_function = get_fa_scorefxn()
+    job_man = PyJobDistributor(output_prefix, n_decoys, score_function)
+    pose = pose_from_pdb(input_file)
+    p = Pose()
+    while not job_man.job_complete:
+        p.assign(pose)
+        relax(p, no_constrains, c_weight)
+        job_man.output_decoy(p)
 
 
 def validate_arguments(args):
@@ -59,6 +123,7 @@ def validate_arguments(args):
         exit("ERROR: Number of decoys must be a non-negative value")
     if args.c_weight < 0 or args.c_weight > 1.0:
         exit("ERROR: Constraints weight must be a non-negative value (< 1.0)")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""Relax a PDB structure.""")
@@ -75,84 +140,24 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--output', metavar='', type=str,
         help='Output prefix (Default: %s)' % (DEFAULT.output_prefix),
         default = DEFAULT.output_prefix)
+    parser.add_argument('-s', '--slurm', action = 'store_true',
+        help = "Use SLURM to launch parallel decoys (Default: False)")
 
     args = parser.parse_args()
     validate_arguments(args)
     init()
 
-    # Define the starting Pose:
-    pose = pose_from_pdb(args.input_file)
-
-    # Define the Score Function:
-    score_function = get_fa_scorefxn()
-
-    if args.no_constraints == False:
-        # Create the Generator
-        coordinates_constraint = CoordinateConstraintGenerator()
-        # Add the Generate to a new AddConstraints object
-        constraints = AddConstraints()
-        constraints.add_generator(coordinates_constraint)
-        # Apply the defined AddConstraints object to a Pose
-        constraints.apply(pose)
-        # Enable all constraint weights on the score function
-        activate_constraints(score_function, args.c_weight)
-
-    # An optinal but recommended Task is to include extra rotamers (away from
-    # the regular optimums) for both chi1 (ex1) and chi2 (ex2)
-    task_factory = standard_task_factory()
-    # It seems that Ex1 is enabled by default.
-    # Ex. task_factory.push_back(ExtraRotamers(0, 1, 1)) # ex1
-    task_factory.push_back(ExtraRotamers(0, 2, 1)) # ex2
-    # FastRelax, by default, blocks 'design' on the regular rotamers. However,
-    # when adding the ExtraRotamers, new 'designable' rotamers are included
-    # and considered during the sampling. Therefore, the TaskFactory must
-    # re-restrict the rotamers to repackaging.
-    task_factory.push_back(RestrictToRepacking())
-    # Altough the PyRosetta manual states that the current rotamer is included
-    # by default, this does not seem to be true and therefore needs to be
-    # activated.
-    task_factory.push_back(IncludeCurrent())
-
-    # Define the FastRelax object with the correct score function and extra
-    # rotamers enabled
-    fast_relax = FastRelax()
-    fast_relax.set_scorefxn(score_function)
-    fast_relax.set_task_factory(task_factory)
-
-    # Run the script, deploying decoys with PyJobDistributor:
-    #   (Possible BUG) PyJobDistributor doesn't start when it exists a .pdb or
-    #   .in_progress file with the same name as the future output from this
-    #   script. Relevant when re-starting the same script without cleaning the
-    #   folder.
-    job_manager = PyJobDistributor(args.output, args.n_decoys, score_function)
-    while not job_manager.job_complete:
-        # This 'while' loop will run 'n_decoys' times, and the second time it
-        # runs it should start from the original pose, not the previously
-        # minimzed structure.
-        p = Pose(pose)
-        fast_relax.apply(p)
-        job_manager.output_decoy(p)
-
-
-#             A U X I L I A R Y   F U N C T I O N S
-# ______________________________________________________________________________
-# 
-# Minimalistic version of the above script.
-# Aimed to be called from other scripts.
-
-def relax(pose, no_constraints = True):
-    score_function = get_fa_scorefxn()
-    if no_constraints == False:
-        coordinates_constraint = CoordinateConstraintGenerator()
-        constraints = AddConstraints()
-        constraints.add_generator(coordinates_constraint)
-        constraints.apply(pose)
-        activate_constraints(score_function, args.c_weight)
-    task_factory = standard_task_factory()
-    task_factory.push_back(ExtraRotamers(0, 2, 1))
-    task_factory.push_back(RestrictToRepacking())
-    task_factory.push_back(IncludeCurrent())
-    fast_relax = FastRelax()
-    fast_relax.set_scorefxn(score_function)
-    fast_relax.set_task_factory(task_factory)
-    fast_relax.apply(pose)
+    if args.slurm:
+        deploy_decoys_on_slurm(
+            args.input_file,
+            args.output,
+            args.n_decoys,
+            args.no_constraints,
+            args.c_weight)
+    else:
+        deploy_decoys_on_pyjobdistributor(
+            args.input_file,
+            args.output,
+            args.n_decoys,
+            args.no_constraints,
+            args.c_weight)
