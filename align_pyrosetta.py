@@ -171,25 +171,26 @@ def set_mask_true_start_stop(pose, mask, start, stop):
 
 
 # ----------------------------------------------------
-from pyrosetta import *
-init()
+if __name__ == "__main__":
+    from pyrosetta import *
+    init()
 
-# A mask is an array of 0 and 1's. Only the atoms whose index in the mask is set
-# to 1 will be considered for the alignment. Moreover, by not providing with a
-# mask, the alignment function will consider all atoms, as long as both poses
-# share the same number of atoms.
-#
-# Create a mask for 2 given regions on the pose (between residues A and B):
-# mask = get_empty_mask(pose)
-# mask = set_mask_true_start_stop(pose, mask, 3,  5)
-# mask = set_mask_true_start_stop(pose, mask, 56, 178)
+    # A mask is an array of 0 and 1's. Only the atoms whose index in the mask is set
+    # to 1 will be considered for the alignment. Moreover, by not providing with a
+    # mask, the alignment function will consider all atoms, as long as both poses
+    # share the same number of atoms.
+    #
+    # Create a mask for 2 given regions on the pose (between residues A and B):
+    # mask = get_empty_mask(pose)
+    # mask = set_mask_true_start_stop(pose, mask, 3,  5)
+    # mask = set_mask_true_start_stop(pose, mask, 56, 178)
 
-pose           = pose_from_pdb("candidate.pdb")
-mask           = get_mask_from_c_alphas(pose)
+    pose           = pose_from_pdb("candidate.pdb")
+    mask           = get_mask_from_c_alphas(pose)
 
-reference_pose = pose_from_pdb("3ch8_3p_rlx.pdb")
-reference_mask = get_mask_from_c_alphas(reference_pose)
+    reference_pose = pose_from_pdb("3ch8_3p_rlx.pdb")
+    reference_mask = get_mask_from_c_alphas(reference_pose)
 
-align(pose, reference_pose, mask, reference_mask)
-pose.dump_pdb("alignment_test.pdb")
-# ----------------------------------------------------
+    align(pose, reference_pose, mask, reference_mask)
+    pose.dump_pdb("alignment_test.pdb")
+    # ----------------------------------------------------
