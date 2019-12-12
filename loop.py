@@ -76,9 +76,12 @@ def validate_arguments(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="""Design the active-site of a
-        protein surrousing a ligand defined in another chain, on the input
-        PDB.""")
+    parser = argparse.ArgumentParser(description="""Rebuild the loop between two
+    parts of an input protein, between the last residue of chain A and the first
+    of chain B. The new loop residues can be built from a sequence or taken from
+    a reference structure. In any case, the secondary structure can be set to be
+    alpha helix, beta sheet, stretched and original conformations. Currently,
+    this options can only be changed in the script body itself.""")
     parser.add_argument('input_file', metavar='INPUT', type=str,
         help='The input PDB file')
     parser.add_argument('-co', '--cutoff', metavar='', type=float,
@@ -108,6 +111,13 @@ if __name__ == "__main__":
     ref_pose = pose_from_pdb("clamshell.pdb")           # !
     ids = [474, 475, 476, 477, 478, 479, 480, 481, 482] # !
     old_loop = Fragment(ref_pose, ids)
+
+    # When appending, the conformation can be set to "alpha", "beta" or
+    # "stretched", and the fragment will adopt the new conformation. Default is
+    # "auto", using the original phi and psi angles.
+    # Ex: old_loop.append_to(pose, anchor_A, backbone = "stretched")
+    # Ex: old_loop.append_to(pose, anchor_A, backbone = "alpha")
+    # Ex: old_loop.append_to(pose, anchor_A, backbone = "beta")
     old_loop.append_to(pose, anchor_A)
 
     # Create the Loop object and add it to a Loops instance. A Loops instance is

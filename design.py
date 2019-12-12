@@ -137,7 +137,7 @@ if __name__ == "__main__":
         help='The ligand chain identifier (Default: %s)' % (DEFAULT.chain),
         default = DEFAULT.chain)
     parser.add_argument('-co', '--cutoff', metavar='', type=float,
-        help='Active site identification cut-off in Å (Default: %5.1f)' \
+        help='Interface identification cut-off in Å (Default: %5.1f)' \
             % (DEFAULT.cut_off), default = DEFAULT.cut_off)
     parser.add_argument('-nd', '--n_decoys', metavar='', type=int,
         help='Number of decoys (Default: %d)' % (DEFAULT.n_decoys),
@@ -171,7 +171,7 @@ if __name__ == "__main__":
     # For this specific case, the selection for design should contain all the
     # residues surrounding the ligand peptide (defined in the chain B of the
     # PDB). The surrounding residues are considered as the residues with a C⍺-C⍺
-    # distance lower than the defined 'cutoff'. NOTE: In
+    # distance lower than the defined 'cutoff'. Note: In
     # NeighborhoodResidueSelector, setting 'include_focus_in_subset' to False
     # removes the target ligand itself from the selected residue subset. In
     # PyRosetta, by default, both the repacking and design settings of a

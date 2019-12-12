@@ -5,6 +5,7 @@ import argparse
 import subprocess
 import numpy as np
 from pyrosetta import *
+from ze_utils.common import overwrite_dir
 from ze_utils.pyrosetta_classes import DockingGrid
 from pyrosetta.rosetta.core.select import get_residues_from_subset
 from pyrosetta.rosetta.core.select.residue_selector import ChainSelector
@@ -56,7 +57,6 @@ class DEFAULT:
     """
     n_decoys   = 100
     n_steps    = 2000
-    max_jobs   = 499
 
 
 def validate_arguments(args):
@@ -69,17 +69,6 @@ def validate_arguments(args):
         exit("ERROR: Number of decoys must be a non-negative value")
     if args.n_steps < 0:
         exit("ERROR: Number of PASSO steps must be a non-negative value")
-
-
-def overwrite_dir(path):
-    """
-    Create a new directory at 'path', overwritting any pre existing data.
-    """
-
-    if os.path.exists(path):
-        print(" >> [ WARNING ] Overwritting directory %s" % (path))
-        shutil.rmtree(path)
-    os.mkdir(path)
 
 
 # ______________________________________________________________________________
@@ -167,7 +156,7 @@ if __name__ == "__main__":
     # Ex. Print the current docking grid starting points in PDB format.
     dg.as_pdb("grid.pdb")
 
-    # Looping over the number of points in the docking grid, move the Chain B
+    # Looping over the number of points in the docking grid, move the Chain B   
     # of the target protein to the new positions and run the simultaneous
     # position and design optimization protocol on each one, asynchronously.
     p = Pose()

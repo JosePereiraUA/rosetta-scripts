@@ -69,7 +69,7 @@ def ID2Rank(pose, ids, as_string = True):
 #     return r
 
 
-def get_residue_energies_from_selector(selector, pose, verbose = True):
+def get_residue_energies_from_selector(selector, pose, verbose = False):
     """
     Extract total energy values for each residue in the given 'subset' from the
     pose (with energy previosuly calculated). The subset must be a
@@ -86,15 +86,18 @@ def get_residue_energies_from_selector(selector, pose, verbose = True):
 
     # Get pose residue numbers from subset:
     residues = get_residues_from_subset(selector.apply(pose))
+    
     # Extract energies for the given residues from the pose:
     energies = []
     for index in residues:
         residue_energy = pose.energies().residue_total_energies(index)
         residue_index = int(pose.pdb_info().pose2pdb(index).split()[0])
         energies.append((index, residue_index, residue_energy[total_score]))
+    
     if verbose:
         for _, i, e in energies:
             print("%6d %9.4f" % (i, e))
+
     return energies
 
 

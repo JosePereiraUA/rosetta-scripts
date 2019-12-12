@@ -1,9 +1,9 @@
 from os.path import expanduser as expusr
 
 #
-#                            C O M M O N               
+#                              C O M M O N               
 #
-#           \\ INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
+#            \\ INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
 #
 # Functions included:
 # 1) get_number_of_jobs_in_slurm_queue
@@ -17,6 +17,9 @@ from os.path import expanduser as expusr
 #
 # 4) blosum62
 #    Use a BLOSUM62 matrix and entries to calculate the score between 2 strings
+#
+# 5) overwrite_dir
+#    Create a new directory, overwritting any existing data
 
 def get_number_of_jobs_in_slurm_queue(user):
     """
@@ -94,3 +97,17 @@ def blosum62(matrix, entries, query, reference):
         per_residue_score.append(residue_score)
         
     return sum(per_residue_score), per_residue_score
+
+
+def overwrite_dir(path):
+    """
+    Create a new directory at 'path', overwritting any pre existing data.
+    """
+
+    import os
+    import shutil
+
+    if os.path.exists(path):
+        print(" >> [ WARNING ] Overwritting directory %s" % (path))
+        shutil.rmtree(path)
+    os.mkdir(path)
