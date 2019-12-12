@@ -15,10 +15,16 @@ from pyrosetta.rosetta.core.simple_metrics.metrics import \
 # ______________________________________________________________________________
 #  Analizes a single PDB file and outputs revelant intra-pose metrics:
 #    . Total energy
-#    . Individual residues energy per selection
-#    . Interaction energy metric (If a ligand is present)
-#    . Solvent Acessible Surface Area (SASA) Metric
+#    . Individual residues energy *
+#    . Interaction energy metric *
 #    . Hydrogen bonding network energy
+#
+#  * Note:
+#  Both the individual residues energy and the interaction energy metric are
+# are only calculated if the defined 'chain' in the input arguments is present.
+# The interaction energy (and interface individual residue energies) are 
+# calculated on the neighbouring region surrouding the target chain (should be a
+# ligand), with a 'cutoff' as defined in the input arguments.
 #
 #  Necessary parts:
 # - Starting Pose;
@@ -29,14 +35,8 @@ from pyrosetta.rosetta.core.simple_metrics.metrics import \
 #   /scripting_documentation/RosettaScripts/SimpleMetrics/SimpleMetrics;
 #   And the following webpages:
 #   http://www.programmersought.com/article/77091668895/
-# - Selections JSON *Script Specific* (This script should contain the number of 
-#   the residues included in each selection in a string, divided by a comma and 
-#   without blank spaces. Since the format is in JSON, the contents of the file
-#   should be a dictionary where each entry should be "sel_name":"1,2,3,4,5,6".
-#   Altough an arbitrary number or selections can be introduced, the interaction
-#   energy metric will be calculated between two specific selection_names if
-#   they are found: "interface" and "lig");
-
+#
+#
 #                  Rosetta Common Latest Documentation:
 # https://www.rosettacommons.org/docs/latest (*add the topic here*)
 
@@ -114,6 +114,7 @@ if __name__ == "__main__":
         for (_, index, energy) in ligand_residues:
             print("%30s %10.3f" % (index, energy))
     if len(interface_residues) > 0:
-        print("\n\n%30s %10s\n %s" % ("Interface residue index", "Energy", "-"*40))
+        print("\n\n%30s %10s\n %s" % \
+            ("Interface residue index", "Energy", "-"*40))
         for (_, index, energy) in interface_residues:
             print("%30s %10.3f" % (index, energy))
