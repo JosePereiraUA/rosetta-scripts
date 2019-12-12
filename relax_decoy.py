@@ -9,9 +9,9 @@ from pyrosetta.rosetta.protocols.constraint_generator import \
 
 #           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
 
-#                            Relax Script:
+#                       Single Decoy Relax Script:
 # ______________________________________________________________________________
-#  Perform an energy minimization.
+#  Performs an energy minimization decoy.
 #  
 #  Necessary parts:
 # - Starting Pose;
@@ -38,6 +38,9 @@ from pyrosetta.rosetta.protocols.constraint_generator import \
 #     poses. 
 # - TaskFactory (Used to enable extra rotamers to be sampled in the packing
 #   process. Is applied to the FastRelax object).
+#
+#    THIS SCRIPT PERFORMS ONLY ONE DECOY ON THE RELAX PROTOCOL.
+#  > Check relax.py script for multiple decoy relax simulation
 # ______________________________________________________________________________
 
 class DEFAULT:

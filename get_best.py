@@ -1,30 +1,22 @@
 import json
 import argparse
 from sys import argv
+from ze_utils.common import load_data_from_fasc_file
 
 #           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
 
-def load_data_from_fasc_file(file_path):
-    """
-    Returns an array with all Dictionary entries found in the .fasc file.
-    """
-    json_path = "["
-    with open(file_path, "r") as file_in:
-        for line in file_in:
-            json_path += line[:-1]
-            json_path += ","
-    json_path = json_path[:-1] + "]"
-    return json.loads(json_path)
 
-
-def extract_n_decoys_by_parameter(data, parameter, n, reverse):
+def extract_n_decoys_by_parameter(data, parameter, n, reverse = False):
     """
     Extract the name of the 'n' decoys with the lowest values of 'paramater'.
     If 'reversed = True', extract the highest value first.
     """
     data = sorted(data, key=lambda entry: entry["total_score"], reverse=reverse)
+    extracted = []
     for entry in data[0:n]:
         print(str(entry["decoy"]), entry[parameter])
+        extracted.append((str(entry["decoy"]), entry[parameter]))
+    return extracted
 
 
 def validate_arguments(args):

@@ -1,8 +1,19 @@
 import argparse
 from pyrosetta import *
-from ze_utils.common import get_number_of_jobs_in_slurm_queue
 from relax_decoy import relax
-from ze_utils.common import overwrite_dir
+from ze_utils.common import \
+    get_number_of_jobs_in_slurm_queue, verify_launch_failed_request_failed, \
+    overwrite_dir
+
+
+#           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
+
+#                                 Relax Script:
+# ______________________________________________________________________________
+#  Performs an energy minimization. This script calls single_decoy.py script to
+# perform each decoy of the simulation. Read its documentation and docstrings
+# for more detailed information.
+
 
 class DEFAULT:
     """
@@ -17,6 +28,11 @@ class DEFAULT:
 def dump_sbatch_script(output_name, input_file, no_constrains = False,
     c_weight = 1.0, keep_bash = False):
     """
+    Creates a new bash file at 'output_name.sh' that instructs the SLURM
+    framework to spawn a new relax_recoy. the location of this script is, by
+    default, '~/scripts/relax_decoy.py', but can be changed bellow. If
+    'keep_bash' is set to False, the created bash file will be deleted after
+    being run with the sbatch or srun command.
     """
 
     bash_filename = "%s.sh" % (output_name)
@@ -43,12 +59,29 @@ def dump_sbatch_script(output_name, input_file, no_constrains = False,
 
 
 def deploy_decoys_on_slurm(input_file, output_prefix, n_decoys,
-    no_constrains = False, c_weight = 1.0):
+    no_constrains = False, c_weight = 1.0, fasc_filename = "auto"):
     """
+    Launch the relax protocol decoys in parallel mode, using SLURM on AMAREL
+    framework. This function will remain ad infinitum waiting for processors to
+    become available for the user (this value is set to 499 on
+    DEFAULT.max_slurm_jobs, but can be modified if using a different framework
+    than AMAREL). This function will output a new bash script for each decoy
+    and then automatically run it when the resources become available before
+    skipping to the next decoy. Output and Error files will be automatically
+    stored in /out/ and /err/ directories, respectively. After all decoys are
+    complete, the resulting PDB files will be loaded and thei energies measured,
+    saving the results to a custom .FASC file.
     """
 
     import os
     import shutil
+
+    # Create the fasc filename if set to auto, else verify extension
+    if fasc_filename == "auto":
+        fasc_filename = "%s_custom.fasc" % (output_prefix)
+    else:
+        assert fasc_filename[:-5] == ".fasc", \
+            "Parameter 'fasc_filename' must have '.fasc' extension."
 
     # The output and error files will be saved in the corresponding directory
     overwrite_dir("out")
@@ -79,6 +112,7 @@ def deploy_decoys_on_slurm(input_file, output_prefix, n_decoys,
         for decoy_index in range(n_decoys):
             output_name = "%s_%d" % (output_prefix, decoy_index)
             if os.path.exists("%s.sh" % (output_name)):
+                verify_launch_failed_request_failed(user)
                 to_break = False
                 break
         if to_break:
@@ -86,12 +120,13 @@ def deploy_decoys_on_slurm(input_file, output_prefix, n_decoys,
 
     # 4) Create a custom .fasc file a posteriori
     score_function = get_fa_scorefxn()
-    with open("%s_custom.fasc" % (output_prefix), "w") as fasc:
+    with open(fasc_filename, "w") as fasc:
         for decoy_index in range(n_decoys):
-            input_name = "%s_%d.pdb" % (output_prefix, decoy_index)
-            pose = pose_from_pdb(input_name)
-            fasc.write("""{"pdb_name": %s, "total_score": %f}\n""" % \
-                (input_name, score_function(pose)))
+            inputname = "%s_%d.pdb" % (output_prefix, decoy_index)
+            pose      = pose_from_pdb(inputname)
+            score     = score_function(pose)
+            entry     = """{"pdb_name": %s, "decoy": %s, "total_score": %f}\n"""
+            fasc.write(entry % (inputname[:-4], inputname, score))
             
             # 5) Store the output and error files in the corresponding folders
             shutil.move("%s_%d.err" % (output_prefix, decoy_index), "err")
@@ -101,9 +136,22 @@ def deploy_decoys_on_slurm(input_file, output_prefix, n_decoys,
 def deploy_decoys_on_pyjobdistributor(input_file, output_prefix, n_decoys,
     no_constrains = False, c_weight = 1.0):
     """
+    Launch the relax protocol decoys in serial mode, using the PyJobDistributor.
+    Each decoy will occupy one processor on the machine, and a new decoy will be
+    started when a processor becomes available.
+
+    Note: As of December 2019, a bug seems to be present where the decoys are
+    being simulated by a single processor only, in serial mode.
     """
 
-    score_function = get_fa_scorefxn()
+    # Import pyrosetta if the calling script doesn't have it imported already
+    try:
+        score_function = get_fa_scorefxn()
+    except:
+        import pyrosetta
+        init()
+        score_function = get_fa_scorefxn()
+
     job_man = PyJobDistributor(output_prefix, n_decoys, score_function)
     pose = pose_from_pdb(input_file)
     p = Pose()
@@ -126,7 +174,8 @@ def validate_arguments(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="""Relax a PDB structure.""")
+    parser = argparse.ArgumentParser(description="""Relax a PDB structure using
+    multiple decoys.""")
     parser.add_argument('input_file', metavar='INPUT', type=str,
         help='The input PDB file')
     parser.add_argument('-nd', '--n_decoys', metavar='', type=int,
