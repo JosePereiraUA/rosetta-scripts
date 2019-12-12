@@ -44,22 +44,22 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
 
+    # If in a SLURM environment, check the number of jobs running and print
+    # the current resources usage percentage.
+    try:
+        n_slurm_jobs = get_number_of_jobs_in_slurm_queue(os.environ["USER"])
+        print("\n%sSLURM resources occupied" % (" "*24))
+        print(" %s %6.2f%%" % \
+            (progress_bar(n_slurm_jobs, DEFAULT.max_slurm_jobs, 55),
+            (n_slurm_jobs / DEFAULT.max_slurm_jobs) * 100))
+    except:
+        None
+
     energies = []
     if not 'init.conf' in os.listdir(os.getcwd()):
-        exit(" > No init.conf file found in the current working directoy." + \
+        exit("\n > No init.conf file found in the current working directoy." + \
         "\n > This file is created when running the multi_dock.py script.")
     else:
-        # If in a SLURM environment, check the number of jobs running and print
-        # the current resources usage percentage.
-        try:
-            n_slurm_jobs = get_number_of_jobs_in_slurm_queue(os.environ["USER"])
-            print("\n%sSLURM resources occupied" % (" "*24))
-            print(" %s %6.2f%%" % \
-                (progress_bar(n_slurm_jobs, DEFAULT.max_slurm_jobs, 55),
-                (n_slurm_jobs / DEFAULT.max_slurm_jobs) * 100))
-        except:
-            None
-
         # init.conf is a simple file with 3 ints: the number of docks, decoys
         # and steps in each decoy, respectively. this information allows for a
         # more efficient extraction of data from the simulation directories.
