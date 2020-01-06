@@ -47,8 +47,10 @@ class DEFAULT:
     """
     Define defaults for the script. Values can be modified using arguments.
     """
-    c_weight      = 1.0
-    output_prefix = "relax"
+    c_weight        = 1.0
+    no_constraints = False
+    output_prefix  = "relax"
+    score_function = "auto"
 
 
 def validate_arguments(args):
@@ -67,7 +69,7 @@ if __name__ == "__main__":
         help='The input PDB file')
     parser.add_argument('-nc', '--no_constraints',
         action='store_true', help='Turn off constraints (Default: False)')
-    parser.add_argument('-w', '--c_weight', metavar='', type=int,
+    parser.add_argument('-w', '--c_weight', metavar='', type=float  ,
         help='Constraints weight (Default: %5.2f)' % (DEFAULT.c_weight),
         default = DEFAULT.c_weight)
     parser.add_argument('-o', '--output', metavar='', type=str,
@@ -120,23 +122,6 @@ if __name__ == "__main__":
     fast_relax.apply(pose)
     pose.dump_pdb(args.output + ".pdb")
 
-    # Run the script, deploying decoys with PyJobDistributor:
-    #   (Possible BUG) PyJobDistributor doesn't start when it exists a .pdb or
-    #   .in_progress file with the same name as the future output from this
-    #   script. Relevant when re-starting the same script without cleaning the
-    #   folder.
-    # job_manager = PyJobDistributor(args.output, args.n_decoys, score_function)
-    # while not job_manager.job_complete:
-    #     # This 'while' loop will run 'n_decoys' times, and the second time it
-    #     # runs it should start from the original pose, not the previously
-    #     # minimzed structure.
-    #     p = Pose(pose)
-    #     fast_relax.apply(p)
-    #     job_manager.output_decoy(p)
-    
-    # Necessary to quit SBATCH jobs on the Amarel framework
-    # exit(0)
-
 
 #             A U X I L I A R Y   F U N C T I O N S
 # ______________________________________________________________________________
@@ -144,13 +129,43 @@ if __name__ == "__main__":
 # Minimalistic version of the above script.
 # Aimed to be called from other scripts.
 
-def relax(pose, no_constraints = False, c_weight = 1.0):
+def relax(pose, no_constraints = DEFAULT.no_constraints,
+    c_weight = DEFAULT.c_weight):
+    """
+    TO DO
+    """
 
-    score_function = get_fa_scorefxn()
+    relaxer = get_relaxer_mover(pose, no_constraints = no_constraints,
+        c_weight = c_weight)
+    p = Pose(pose)
+    relaxer.apply(p)
+    return p
+
+
+def get_relaxer_mover(pose, score_function = DEFAULT.score_function,
+    no_constraints = DEFAULT.no_constraints, c_weight = DEFAULT.c_weight):
+    """
+    TO DO
+    """
+
+    if score_function == "auto":
+        try:
+            score_function = get_fa_scorefxn()
+        except:
+            import pyrosetta
+            init()
+            score_function = get_fa_scorefxn()
+    else:
+        from pyrosetta.rosetta.core.scoring import ScoreFunction
+        assert type(score_function) == ScoreFunction, \
+            "Score function for relaxer mover must be of type ScoreFunction."
+
     if no_constraints == False:
         coordinates_constraint = CoordinateConstraintGenerator()
         constraints = AddConstraints()
         constraints.add_generator(coordinates_constraint)
+        print(constraints)
+        print(pose)
         constraints.apply(pose)
         activate_constraints(score_function, c_weight)
     task_factory = standard_task_factory()
@@ -160,4 +175,5 @@ def relax(pose, no_constraints = False, c_weight = 1.0):
     fast_relax = FastRelax()
     fast_relax.set_scorefxn(score_function)
     fast_relax.set_task_factory(task_factory)
-    fast_relax.apply(pose)
+
+    return fast_relax
