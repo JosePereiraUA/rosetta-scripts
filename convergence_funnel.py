@@ -26,7 +26,7 @@ class DEFAULT:
     """
     Define defaults for the script. Values can be modified using arguments.
     """
-    original = -1
+    output = "convergence_funnel.png"
 
 
 def validate_arguments(args):
@@ -35,21 +35,24 @@ def validate_arguments(args):
     """
     if args.input_file != None and args.input_file[-5:] != ".fasc":
         exit("ERROR: Input file should be in .FASC format")
-    if args.original != None and args.original[-4:] != ".pdb":
+    if args.reference != None and args.reference[-4:] != ".pdb":
         exit("ERROR: Original file should be in PDB format")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""Plots the energy/RMSD
         variation between each structure defined in the .FASC file and the best
-        overall structure, based on the total score. If a reference 'original'
-        structure file is provided, show the difference between that strucutre
-        and the best structure as a line in the plot.""")
+        overall structure, based on the total score. If a 'reference' structure
+        file is provided, show the difference between that strucutre and the
+        best structure as a line in the plot.""")
 
     parser.add_argument('input_file', metavar='FASC', type=str,
         help='The input FASC file')
-    parser.add_argument('-o', '--original', metavar='', type=str,
-        help='Original structure for comparison purposes.')
+    parser.add_argument('-r', '--reference', metavar='', type=str,
+        help='Reference structure for comparison purposes.')
+    parser.add_argument('-o', '--output', metavar='', type=str,
+        help='Filename for the output image of the plot (Default: %s).' % \
+            (DEFAULT.output), default = DEFAULT.output)
     args = parser.parse_args()
     validate_arguments(args)
 
@@ -75,9 +78,9 @@ if __name__ == "__main__":
         # Print loading progress in a progress bar
         pb = progress_bar(index, n_filenames, 55)
         pb_per = (index / n_filenames) * 100
-        print(" %s %5.2f %-s" % (pb, pb_per, filename), end="\r", flush=True)
-    print(" "*100, end="\r", flush=True)
-    print(" %s %5.2f" % (progress_bar(1, 1, 55), 100.0))
+        sys.stdout.write("\r" + " %s %5.2f %-s" % (pb, pb_per, filename))
+        sys.stdout.flush()
+    print("\r" + " %s %5.2f" % (progress_bar(1, 1, 55), 100.0) + " " * 20)
 
     # Using the loaded Molecule objects, calculate RMSD values vs best structure
     # Additionally, extract each structure energy difference vs best structure
@@ -96,17 +99,16 @@ if __name__ == "__main__":
         # Print calculation progress in progress bar
         pb = progress_bar(index, n_structures, 55)
         pb_per = (index / n_structures) * 100
-        print(" %s %5.2f %-s" % (pb, pb_per, structure.name), \
-            end="\r", flush=True)
-    print(" "*100, end="\r", flush=True)
-    print(" %s %5.2f" % (progress_bar(1, 1, 55), 100.0))
+        sys.stdout.write("\r" + " %s %5.2f %-s" % (pb, pb_per, structure.name))
+        sys.stdout.flush()
+    print("\r" + " %s %5.2f" % (progress_bar(1, 1, 55), 100.0) + " " * 20)
 
     # Create the plot figure
     fig, ax = plt.subplots()
 
     # If defined, calculate the RMSD value of the original vs best structures
     # and show the result as a vertical line in the plot
-    if args.original != None:
+    if args.reference != None:
         print(" : Calculating RMSD value for original structure")
         from align_pyrosetta import *
         from pyrosetta import *
@@ -118,9 +120,12 @@ if __name__ == "__main__":
         ax.axvline(original_rmsd, c = 'orchid')
 
     # Scatter plot the RMSD vs energy values
-    print(" : Plotting results")
+    print(" : Saving results to file %s" % (args.output))
     ax.scatter(rmsds, energies, c = 'lightseagreen')
     ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('+%d'))
     ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%5.2f'))
     ax.set(xlabel='RMSD (Angstrom)', ylabel='Energy variation (REU)')
+    plt.savefig(args.output, bbox_inches='tight')
+
+    print(" : Plotting results")
     plt.show()

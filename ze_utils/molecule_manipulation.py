@@ -243,7 +243,7 @@ class Molecule:
 
                 # If conect records exist, remove all instances of this atom in
                 # the conect records of neighbouring atoms
-                if len(self.conects) == 0:
+                if not len(self.conects) == 0:
                     for bond in self.conects[index].bonded:
                         this_atom_index = self.conects[index].index
                         self.conects[bond - 1].bonded.remove(this_atom_index)

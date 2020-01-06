@@ -22,7 +22,8 @@ class DEFAULT:
     """
     Define defaults for the script. Values can be modified using arguments.
     """
-    n_decoys = 250
+    n_decoys  = 250
+    partition = "main"
 
 
 def validate_arguments(args):
@@ -48,6 +49,9 @@ if __name__ == "__main__":
         default = DEFAULT.n_decoys)
     parser.add_argument('-s', '--slurm', action = 'store_true',
         help = "Use SLURM to launch parallel decoys (Default: False)")
+    parser.add_argument('-p', '--partition', metavar='', type=str,
+        help='Partition for SLURM (Default: %s)' % (DEFAULT.partition),
+        default = DEFAULT.partition)
 
     args = parser.parse_args()
     validate_arguments(args)
@@ -61,7 +65,8 @@ if __name__ == "__main__":
             args.n_decoys,
             True,
             1.0,
-            args.input_file[:-4] + "_relaxed.fasc")
+            args.input_file[:-4] + "_relaxed.fasc",
+            args.partition)
     else:
         deploy_decoys_on_pyjobdistributor(
             args.input_file,
@@ -94,5 +99,5 @@ if __name__ == "__main__":
 
     # 5) Save results to a file
     with open("stability_assessment.dat", "w") as file_out:
-        file_out.write("all_atoms %12.3f" % (all_atoms_rmsd))
+        file_out.write("all_atoms %12.3f\n" % (all_atoms_rmsd))
         file_out.write("c_alpha   %12.3f" % (  c_alpha_rmsd))

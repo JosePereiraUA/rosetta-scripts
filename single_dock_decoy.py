@@ -35,8 +35,8 @@ from ze_utils.pyrosetta_classes import PASSO
 # pdb.set_chain_from_range('B', 483, 572) # Set Chain B
 # pdb.set_chain_from_range('C',   1,   7) # Set Chain C
 # pdb.remove_residues_in_range(474, 482)  # Remove atoms in the loop region
-# pdb.sort_residues_by_chain()            # (Optional) Renumber all residues
-# pdb.print_structure("output.pdb")       # Save edited structure
+# pdb.sort_residues_by_chain()            # (Necessary) Renumber all residues
+# pdb.export("output.pdb")                # Save edited structure
 #
 #  Or by automatically identifying chains from the connection graphs, as long as
 # the chains are deterministically separated in the CONECT records of the input
@@ -45,7 +45,7 @@ from ze_utils.pyrosetta_classes import PASSO
 # pdb = Molecule("input.pdb")            # Load structure
 # pdb.remove_residues_in_range(474, 482) # Remove atoms in the loop region
 # pdb.define_chains_from_connections()   # Automatically identify chains
-# pdb.renumber_residues()                # (Optional) Renumber all residues
+# pdb.renumber_residues()                # (Necessary) Renumber all residues
 # pdb.export("output.pdb")               # Save edited structure
 #
 # Note: By renumbering the residues, the missing loop anchors will have
@@ -82,7 +82,7 @@ def validate_arguments(args):
         exit("ERROR: Number of PASSO steps must be a non-negative value")
 
 
-def single_dock_decoy(input_file, output_prefix, n_steps, pre_filter = "auto"):
+def single_dock_decoy(input_file, output_prefix, n_steps, docker = "auto"):
     """
     Launch a new PASSO protocol from the 'input_file' pose (must be a PDB file).
     All output files from the PASSO protocol will have the 'output_prefix'. The
@@ -93,6 +93,11 @@ def single_dock_decoy(input_file, output_prefix, n_steps, pre_filter = "auto"):
     assert input_file[-4:] == ".pdb", \
         "Input file for PASSO protocol must be in PDB format (in in %s)." % \
             (input_file[-4:])
+
+    if docker == "auto":
+        docker = PASSO(n_steps)
+    else:
+        assert type(docker) == PASSO, "Docker object must be of type PASSO."
 
     # Load the pose and the score function
     pose = pose_from_pdb(input_file)
@@ -105,11 +110,6 @@ def single_dock_decoy(input_file, output_prefix, n_steps, pre_filter = "auto"):
     # necessarily correspond to the best overall result. Therefore, the name
     # of the PDB needs to point towards the corrent directory.
     pose.pdb_info().name("%s.pdb" % (output_prefix))
-
-    # Create the PASSO protocol object
-    docker = PASSO(n_steps,
-        pre_filter = pre_filter,
-        score_function = score_function)
 
     # Apply the PASSO protocol to the new starting position pose
     docker.apply(pose)
@@ -145,4 +145,5 @@ if __name__ == "__main__":
     pre_filter = load_pre_filter(args.pre_filter)
     # Ex. pre_filter.contact_min_count = 6
     
-    single_dock_decoy(args.input_file, args.output, args.n_steps, pre_filter)
+    docker = PASSO(args.n_steps, pre_filter = pre_filter)
+    single_dock_decoy(args.input_file, args.output, args.n_steps, docker)

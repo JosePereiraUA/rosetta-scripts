@@ -4,7 +4,8 @@ from ze_utils.pyrosetta_classes import PASSO, PreFilter
 from single_dock_decoy import single_dock_decoy
 from ze_utils.pyrosetta_tools import \
     set_ABC_model_fold_tree, load_pre_filter, save_pre_filter
-from ze_utils.common import get_number_of_jobs_in_slurm_queue
+from ze_utils.common import \
+    get_number_of_jobs_in_slurm_queue, verify_launch_failed_requeued_held
 
 #           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
 
@@ -86,15 +87,24 @@ def deploy_decoys_on_slurm(input_file, output_prefix, n_decoys, n_steps,
 
     user = os.environ['USER']
     for decoy_index in range(n_decoys):
+
+        # 1) Create the single_dock_decoy.py sbatch script
         output_name = "%s_%d" % (output_prefix, decoy_index)
         dump_sbatch_script(output_name, input_file, n_steps, pre_filter)
 
+        # 2) Ping the user slurm queue for a vacant spot to deploy the job
         while True:
+
+            # 2.1) Verify if new space exists to launch the next decoy
             n_jobs_on_slurm_queue = get_number_of_jobs_in_slurm_queue(user)
 
             if n_jobs_on_slurm_queue <= DEFAULT.max_slurm_jobs:
                 os.system("sbatch %s" % ("%s.sh" % (output_name)))
                 break
+
+            # 2.2) If no space is available, verify in no previous jobs have
+            # become stuck with the "launch failed requeued held" error
+            verify_launch_failed_requeued_held(user)
             
 
 def deploy_decoys_on_pyjobdistributor(input_file, output_prefix, n_decoys,
@@ -108,7 +118,9 @@ def deploy_decoys_on_pyjobdistributor(input_file, output_prefix, n_decoys,
     job_man = PyJobDistributor(output_prefix, n_decoys, score_function)
     while not job_man.job_complete:
         output_name = "%s_%d" % (output_prefix, job_man.current_id)
-        p = single_dock_decoy(input_file, output_name, n_steps, pre_filter)
+        docker = PASSO(n_steps, pre_filter = pre_filter,
+            score_function = score_function)
+        p = single_dock_decoy(input_file, output_name, n_steps, docker)
 
         # this is the last frame of the simulation. Since the PASSO protocol is
         # based on MonteCarlo, it might not correspond to the lowest energy

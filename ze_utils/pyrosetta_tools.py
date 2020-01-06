@@ -26,8 +26,10 @@ def get_pymol_selection_from_selector(selector, pose):
     """
     # Get pose residue numbers from subset
     residues = get_residues_from_subset(selector.apply(pose))
+
     # Initiate selection syntax
     selection = "select sele, resi "
+
     # Get the actual residue index in the PDB
     for index in residues:
         residue_index = pose.pdb_info().pose2pdb(index).split()[0]

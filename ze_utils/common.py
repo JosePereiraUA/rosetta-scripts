@@ -10,7 +10,7 @@ from os.path import expanduser as expusr
 # 1) get_number_of_jobs_in_slurm_queue
 #    Returns the numbers of SLURM jobs in the current user's queue
 #
-# 2) verify_launch_failed_request_failed
+# 2) verify_launch_failed_requeued_held
 #    Automatically recovers jobs from the '(launch failed requeued held)' error
 #
 # 3) progress_bar
@@ -57,7 +57,7 @@ def get_number_of_jobs_in_slurm_queue(user):
     return number_of_jobs_in_slurm_queue
 
 
-def verify_launch_failed_request_failed(user):
+def verify_launch_failed_requeued_held(user):
     """
     Verifies the 'user's squeue, searching for '(launch failed requeued held)'
     errors, releasing the jobs.
@@ -146,12 +146,12 @@ def load_data_from_fasc_file(file_path):
     """
     Returns an array with all Dictionary entries found in the .fasc file.
     """
-    json_path = "["
+    json_path = '['
     with open(file_path, "r") as file_in:
         for line in file_in:
             json_path += line[:-1]
-            json_path += ","
-    json_path = json_path[:-1] + "]"
+            json_path += ','
+    json_path = json_path[:-1] + ']'
     
     try:
         return json.loads(json_path)

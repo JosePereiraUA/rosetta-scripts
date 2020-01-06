@@ -1,5 +1,5 @@
 import argparse
-from relax import relax
+from relax_decoy import relax
 from pyrosetta import *
 from ze_utils.pyrosetta_classes import Fragment
 from ze_utils.pyrosetta_tools import uncap_selection
@@ -108,8 +108,8 @@ if __name__ == "__main__":
     # to be performed manually by defining each residue ID and the original PDB
     # file, in this script. A prototype automatic identification function has
     # been developed in ze_utils.other.identify_loops, but without success.
-    ref_pose = pose_from_pdb("clamshell.pdb")           # !
-    ids = [474, 475, 476, 477, 478, 479, 480, 481, 482] # !
+    ref_pose = pose_from_pdb("relax_570.pdb")          # !
+    ids = [99, 100, 101, 102, 103, 104, 105, 106, 107] # !
     old_loop = Fragment(ref_pose, ids)
 
     # When appending, the conformation can be set to "alpha", "beta" or
@@ -167,8 +167,8 @@ if __name__ == "__main__":
     # Or limited to only a few steps (for example, for test purposes)
     # Ex. loop_modeler.fullatom_stage().mark_as_test_run()
     loop_modeler = LoopModeler()
-    loop_modeler.centroid_stage().mark_as_test_run()
-    loop_modeler.fullatom_stage().mark_as_test_run()
+    loop_modeler.centroid_stage()
+    loop_modeler.fullatom_stage()
     loop_modeler.set_loops(loops)
     loop_modeler.set_task_factory(task_factory)
 
@@ -185,6 +185,7 @@ if __name__ == "__main__":
         # Change the reconnected chain B to be continuous with chain A. This
         # prevents pyrosetta from trying to change the connection residue
         # between the two chains to a terminal variant.
+        # NOTE: DOESN'T WORK! NEEDS TO BE SET MANUALLY!
         for index in range(1, len(p.residues)):
             if p.pdb_info().chain(index) == 'B':
                 p.pdb_info().chain(index, 'A')

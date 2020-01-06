@@ -246,7 +246,7 @@ class PASSO:
         dock_mover = "auto", design_mover = "auto", pre_filter     = "auto",
         designable = "auto", repackable   = "auto", score_function = "auto"):
 
-        from design import get_design_mover
+        from design import get_designer_mover
         from pyrosetta import get_fa_scorefxn
         from pyrosetta.rosetta.core.scoring import ScoreFunction
         from pyrosetta.rosetta.protocols.rigid import RigidBodyPerturbMover
@@ -307,7 +307,7 @@ class PASSO:
 
         # --- DESIGN MOVER
         if design_mover == "auto":
-            self.design_mover = get_design_mover(
+            self.design_mover = get_designer_mover(
                 self.score_function, self.designable, self.repackable)
         else:
             self.design_mover = design_mover

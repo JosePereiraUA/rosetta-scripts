@@ -66,7 +66,7 @@ if __name__ == "__main__":
         help='Interface identification cut-off in Å (Default: %5.1f)' \
             % (DEFAULT.cut_off), default = DEFAULT.cut_off)
     parser.add_argument('-c', '--chain', metavar='', type=str,
-        help='Chain defined as index (Default: %s)' \
+        help='Chain defined as ligand (Default: %s)' \
             % (DEFAULT.chain), default = DEFAULT.chain)
 
     args = parser.parse_args()
