@@ -703,6 +703,461 @@ class Fragment:
             pose.set_omega(r, ang[2])
 
 
+class Rotamer:
+    """
+    """
+
+    def __init__(self, name, weight, chis):
+        self.name   = name
+        self.weight = weight
+        self.chis   = chis
+
+
+    def apply(self, pose, seqpos):
+        """
+        """
+
+        # Mutate to the correct residue type, if necessary
+        if pose.residue(seqpos).name3() != self.name:
+            try:
+                residue_mutator = MutateResidue(seqpos, self.name)
+            except:
+                from pyrosetta.rosetta.protocols.simple_moves import \
+                    MutateResidue
+                residue_mutator = MutateResidue(seqpos, self.name)
+            residue_mutator.apply(pose)
+
+        # Apply the new chi angles
+        for chi in range(1, pose.residue(seqpos).nchi() + 1):
+            pose.set_chi(chi, seqpos, self.chis[chi - 1])
+
+
+class RotamerLibrary:
+    """
+    """
+
+    def __init__(self, filename = None):
+        self.data = {}
+        if filename:
+            self.load(filename)
+
+    def load(self, filename, verbose = True):
+        """
+        """
+
+        count = 0
+        if verbose:
+            print(" Loading rotamer library:")
+        with open(filename, "r") as rotamer_library:
+            for line in rotamer_library:
+                elem = line.split()
+
+                # Definitions for each line in the rotamer library
+                residue_type = elem[0]
+                phi          = float(elem[1 ])
+                psi          = float(elem[2 ])
+                weight       = float(elem[8 ])
+                chi1         = float(elem[9 ])
+                chi2         = float(elem[10])
+                chi3         = float(elem[11])
+                chi4         = float(elem[12])
+
+                # Create necessary inner-dictionaries if necessary
+                if not residue_type in self.data:
+                    self.data[residue_type] = {}
+                    count += 1
+
+                    if verbose:
+                        # Print loading progress in a progress bar
+                        try:
+                            pb = progress_bar(count, 18, 55)
+                        except:
+                            from ze_utils.common import progress_bar
+                            pb = progress_bar(count, 18, 55)
+                        pb_per = (count / 18) * 100
+                        sys.stdout.write("\r" + " %s %5.2f%% %-s" % \
+                            (pb, pb_per, residue_type))
+                        sys.stdout.flush()
+
+                if not phi in self.data[residue_type]:
+                    self.data[residue_type][phi] = {}
+                if not psi in self.data[residue_type][phi]:
+                    self.data[residue_type][phi][psi] = []
+
+                # Append a new rotamer
+                chis    = [chi1, chi2, chi3, chi4]
+                rotamer = Rotamer(residue_type, weight, chis)
+                self.data[residue_type][phi][psi].append(rotamer)
+        
+        if verbose:
+            pb = progress_bar(1, 1, 55)
+            print("\r" + " %s %5.2f%%" % (pb, 100.0) + " " * 20)
+    
+
+    def get_rotamer_list(self, residue_type, phi, psi, max_length = 5):
+        """
+        """
+
+        assert max_length == None or max_length >= 1, \
+            "'max_length' should be set to None or an int equal/greater than 1"
+
+        assert type(residue_type) == str and len(residue_type) == 3, \
+            "'residue_type' should be a 3 letter string of the aminoacid name"
+
+        if residue_type in ["GLY", "ALA"]:
+            return []
+
+        full_list = sorted(self.data[residue_type][phi][psi], \
+            key = lambda rotamer: rotamer.weight, reverse = True)
+
+        if max_length == None:
+            return full_list
+        else:
+            return full_list[:max_length]
+
+    
+    def get_rotamer_list_at_pos(self, pose, seqpos, max_length = 5):
+        """
+        """
+
+        residue_type = pose.residue(seqpos).name3()
+        phi          = round(pose.phi(seqpos), -1)
+        psi          = round(pose.psi(seqpos), -1)
+        
+        return self.get_rotamer_list(residue_type, phi, psi, max_length)
+
+
+class RotamerCycler:
+    """
+    """
+
+    def __init__(self, rotlib, pose, seqpos, max_length = 5):
+
+        assert type(pose) == Pose, "'pose' should be of type Pose"
+        assert max_length == None or max_length >= 1, \
+            "max_length should be set to None or an int equal or greater than 1"
+        assert type(rotlib) == RotamerLibrary, \
+            "'rotlib' should be an instance of RotamerLibrary"
+
+        hb_forming_aas = ["ARG", "ASN", "ASP", "GLN", "GLU", "HIS",
+                          "LYS", "SER", "THR", "TRP", "TYR"]
+
+        self.pose = pose
+        if type(seqpos) == int:
+            self.seqpos = [seqpos]
+        else:
+            self.seqpos = seqpos
+
+        self.rot_lists = []
+        self.counters  = []
+        for (index, pos) in enumerate(seqpos):
+            self.rot_lists.append([])
+            phi = round(pose.phi(pos), -1)
+            psi = round(pose.psi(pos), -1)
+            for aa in hb_forming_aas:
+                rot_list = rotlib.get_rotamer_list(aa, phi, psi, max_length)
+                self.rot_lists[index] += rot_list
+            self.counters.append(0)
+        self.counters[-1] = -1
+
+
+    def counters_plus_one(self, pos):
+        """
+        """
+
+        query = self.counters[pos] + 1
+        if query == len(self.rot_lists[pos]):
+            if pos == 0:
+                return False
+            else:
+                if not self.counters_plus_one   (pos - 1):
+                    return False
+                self.counters[pos] = 0
+        else:
+            self.counters[pos] += 1
+
+        return True
+
+
+    def apply(self, counters):
+        """
+        """
+
+        for (index, counter) in enumerate(counters):
+            rotamer = self.rot_lists[index][counter]
+            rotamer.apply(self.pose, self.seqpos[index])
+
+    
+    def restrict_to_repack(self, rot_list_index):
+        """
+        """
+
+        # Mark rotamers not of this type to be removed
+        to_remove    = []
+        residue_type = self.pose.residue(self.seqpos[rot_list_index]).name3()
+        for (index, rotamer) in enumerate(self.rot_lists[rot_list_index]):
+            if rotamer.name != residue_type:
+                to_remove.append(index)
+
+        # Loop over the reverse (removing the last indexes first does not alter
+        # the sequence)
+        to_remove = to_remove[::-1]
+        for index in to_remove:
+            self.rot_lists[rot_list_index].pop(index)
+
+
+    def cycle_all(self, pmm = None):
+        """
+        """
+        while not done:
+            done = not self.next()
+            if pmm:
+                pmm.apply(self.pose)
+
+
+    def next(self):
+        """
+        """
+
+        # Increase counters
+        if not self.counters_plus_one(len(self.counters) - 1):
+            return False
+
+        # Apply current counters
+        self.apply(self.counters)
+        return True
+
+
+class DesignHydrogenBondMover:
+    """
+    """
+
+    def __init__(self, target_residue, rotlib, max_length = None, n_cycles = 4,
+        design_mover = "auto", designable = "auto", repackable = "auto",
+        score_function = "auto", skip_target_interface_clashes = False):
+
+        from pyrosetta.rosetta.core.select.residue_selector import \
+            ResidueIndexSelector, AndResidueSelector, ChainSelector, \
+            NeighborhoodResidueSelector, ResidueSelector, NotResidueSelector
+
+        self.target_residue                = target_residue
+        self.rotlib                        = rotlib
+        self.max_length                    = max_length
+        self.n_cycles                      = n_cycles
+        self.design_mover                  = design_mover
+        self.skip_target_interface_clashes = skip_target_interface_clashes
+
+        # --- CLOSEST RESIDUES
+        self.target_residue_select = ResidueIndexSelector(target_residue)
+        # self.neighbours = AndResidueSelector(
+        #     NeighborhoodResidueSelector(self.target_residue_select, 9.0, False),
+        #     ChainSelector("B"))
+    
+        # --- DESIGNABLE REGION
+        assert isinstance(designable, ResidueSelector) or designable == "auto",\
+            "Designable selection must be a ResidueSelector or set to 'auto'"
+        if designable == "auto":
+            self.designable = AndResidueSelector(
+                    NeighborhoodResidueSelector(
+                        ChainSelector("C"),
+                        9.0,
+                        include_focus_in_subset = False),
+                    ChainSelector("B"))
+        else:
+            self.designable = designable
+
+        # --- REPACKABLE REGION
+        # Note: This region already excludes the target_residue, as its rotamer
+        # should be locked
+        assert isinstance(repackable, ResidueSelector) or repackable == "auto",\
+            "Repackable selection must be a ResidueSelector or set to 'auto'"
+        if repackable == "auto":
+            self.repackable = AndResidueSelector(
+                ChainSelector("C"),
+                NotResidueSelector(ResidueIndexSelector(str(target_residue))))
+        else:
+            self.repackable = repackable
+
+        # --- SCORE FUNCTION
+        assert type(score_function) == ScoreFunction or \
+            score_function == "auto",\
+            "Score function must be of type ScoreFunction or set to 'auto'"
+        if score_function == "auto":
+            self.score_function = get_fa_scorefxn()
+        else:
+            self.score_function = score_function
+
+
+    def apply(self, pose, verbose = True):
+        """
+        """
+
+        # Find closest residues list (ordered)
+        try:
+            neighbour_idxs = get_residues_from_subset(
+                self.designable.apply(pose))
+        except:
+            from pyrosetta.rosetta.core.select import get_residues_from_subset
+            neighbour_idxs = get_residues_from_subset(
+                self.designable.apply(pose))
+
+        try:     
+            d_table = calc_d_table_between_selectors(
+                self.target_residue_select,
+                self.designable,
+                pose,
+                True)
+        except:
+            from ze_utils.pyrosetta_tools import \
+                calc_d_table_between_selectors_atoms, measure_affinity, \
+                calc_d_table_between_selectors, ID2Rank, measure_hbonds_number
+            d_table = calc_d_table_between_selectors(
+                self.target_residue_select,
+                self.designable,
+                pose,
+                True)
+
+        closest_residues_distances = sorted(d_table[0])
+        try:
+            idxs = [np.where(d_table[0] == distance)[0][0] \
+                for distance in closest_residues_distances]
+        except:
+            import numpy as np
+            idxs = [np.where(d_table[0] == distance)[0][0] \
+                for distance in closest_residues_distances]
+
+        # Note: neighbour_indexes is an instance of a vector1_unsigned_long,
+        # whose indexation starts on 1, not 0. Therefore, a 1 must be added to
+        # the regular residue index
+        closest_residues = [neighbour_idxs[idx + 1] for idx in idxs]
+
+        # Perform search on the closest residue. If no hydrogen bon is found
+        # after enumerating all combinations of rotamers on this residue, keep
+        # searching on the second closest residue, etc
+        for closest_residue in closest_residues:
+
+            # The selections are used in the calculation of clashes
+            try:
+                closest_residue_select = ResidueIndexSelector(
+                    str(closest_residue))
+            except:
+                from pyrosetta.rosetta.core.select.residue_selector import \
+                    ResidueIndexSelector, NotResidueSelector, AndResidueSelector
+                closest_residue_select = ResidueIndexSelector(
+                    str(closest_residue))
+
+            # Create the RotamerCycler object
+            target_aas     = [self.target_residue, closest_residue]
+            rotamer_cycler = RotamerCycler(self.rotlib, pose, target_aas,
+                self.max_length)
+            rotamer_cycler.restrict_to_repack(0)
+
+            try:
+                max_step = reduce(mul,
+                    [len(l) for l in rotamer_cycler.rot_lists], 1)
+            except:
+                from operator import mul
+                from functools import reduce
+                max_step = reduce(mul,
+                    [len(l) for l in rotamer_cycler.rot_lists], 1)
+
+            results  = []
+            done     = False
+            step     = 0
+            while not done:
+                step += 1
+                done = not rotamer_cycler.next()
+
+                if verbose:
+                    try:
+                        pb = progress_bar(step, max_step, 55)
+                    except:
+                        from ze_utils.common import progress_bar
+                        pb = progress_bar(step, max_step, 55)
+                    pb_per = (step / max_step) * 100
+                    sys.stdout.write("\r" + " %s %5.2f%%" % \
+                        (pb, pb_per))
+                    sys.stdout.flush()
+                
+                # Count the number of hydrogen bonds identified. If no hydrogen
+                # bond exists, continue to the next rotamer
+                n, _ = measure_hbonds_number(pose, self.target_residue,
+                    closest_residue, self.score_function, verbose)
+                if n == 0:
+                    continue
+
+                # If a clash is identified between this two rotamers (target and
+                # closest residues), ignore this conformation and continue the
+                # search. Does not take clashes with other residues into
+                # consideration. This "can" be set to False since during the
+                # regular design phase, a minimization should be employed.
+                if self.skip_target_interface_clashes:
+                    d_table = calc_d_table_between_selectors_atoms(
+                        self.target_residue_select,
+                        closest_residue_select,
+                        pose)
+                    if count_overlaps_from_d_table(d_table, 0.9) > 0:
+                        continue
+
+                # Calculate the affinity values for this conformation
+                afinity = measure_affinity(
+                    pose,
+                    self.target_residue,
+                    closest_residue,
+                    self.score_function)
+                results.append([rotamer_cycler.counters.copy(), afinity])
+            
+            # If all rotamers have been attempted for this residue and no
+            # (non-clashing) hydrogen bond has been found, continue the search
+            # with the second closest residue, etc
+            if len(results) == 0:
+                continue
+
+            # Otherwise, continue to the regular design phase, where the placed
+            # rotamers are locked. therefore, the actual designable region (for
+            # the regular design phase) does not incluse this closest_residue,
+            # since it's nature/rotamer is locked
+            designable = AndResidueSelector(
+                self.designable,
+                NotResidueSelector(closest_residue_select))
+
+            # Recover the best enumeration conformation. If follows the
+            # following priorities:
+            # 1) Higher number of hydrogen bonds
+            # 2) If more than 1 conformation have the higher number of hydrogen
+            # bonds, choose the one with the lowest hydrogen bonding energy
+            results = sorted(results, key = lambda x: x[1]["hbonds_number"],
+                reverse = True)
+            nhb = results[0][1]["hbonds_number"]
+            s_r = [h for h in results if h[1]["hbonds_number"] == nhb]
+            if len(s_r) == 1:
+                rotamer_cycler.apply(results[0][0])
+            else:
+                s_r2 = sorted(s_r, key = lambda x: x[1]["hbonds_energy"])
+                rotamer_cycler.apply(s_r2[0][0])
+
+            # Regular design phase
+            if self.design_mover == "auto":
+                try:
+                    design_mover = get_designer_mover(
+                        self.score_function, designable, self.repackable)
+                except:
+                    from design import get_designer_mover
+                    design_mover = get_designer_mover(
+                        self.score_function, designable, self.repackable)
+            else:
+                design_mover = self.design_mover
+
+            p = Pose(pose)
+            for j in range(self.n_cycles):
+                design_mover.apply(p)
+            return p
+            
+        if verbose:
+            print("No hydrogen bonds were found in any of the closest residues")
+        return None
+
+
 class ResidueToAtomMapping:
     """
     This simple class holds information regarding residue to atom mapping,

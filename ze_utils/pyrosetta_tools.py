@@ -1,5 +1,6 @@
 import json
 import numpy as np
+from pyrosetta import *
 from pyrosetta.rosetta.core.select import *
 from pyrosetta.rosetta.core.scoring import *
 from pyrosetta.rosetta.core.conformation import Residue
@@ -238,20 +239,24 @@ def save_selections_to_json_file(filename, pose, selectors):
         json.dump(selections, file_out)
 
 
-def calc_d_table_between_selectors(selector1, selector2, pose):
+def calc_d_table_between_selectors(selector1, selector2, pose, ca_only = False):
     """
     Returns an (n x m) matrix (where n is the length of 'selector1' and m is the
     length of 'selector2'), containing the euclidean distances between all pairs
     of residues from both the selections in the given 'pose'. The atoms that are
     considered for calculating the distances are the "CEN" atoms (if the pose is
     in centroid mode) or the last atom of the sidechain (if the pose is in
-    normal mode).
+    normal mode). In either case, if the 'ca_only' flag is set to True, alpha
+    carbons are considered instead.
     """
 
     from ze_utils.pyrosetta_classes import ResidueToAtomMapping
 
     sc = ResidueToAtomMapping()
-    sc_map = sc.cen if pose.is_centroid() else sc.reg
+    if ca_only:
+        sc_map = sc.cal
+    else:
+        sc_map = sc.cen if pose.is_centroid() else sc.reg
     residues1 = get_residues_from_selector(selector1, pose)
     residues2 = get_residues_from_selector(selector2, pose)
     s1 = len(residues1)
@@ -265,6 +270,31 @@ def calc_d_table_between_selectors(selector1, selector2, pose):
             res_j = residues2[j]
             atm_j = np.array(res_j.atom(sc_map[res_j.name1()]).xyz())
             d_table[i, j] = np.linalg.norm(atm_j-atm_i)
+    return d_table
+
+
+def calc_d_table_between_selectors_atoms(selector1, selector2, pose):
+    """
+    """
+
+    residues1 = get_residues_from_selector(selector1, pose)
+    residues2 = get_residues_from_selector(selector2, pose)
+
+    atoms_selector1 = []
+    for res in residues1:
+        for atom in res.atoms():
+            atoms_selector1.append(np.array(atom.xyz()))
+
+    atoms_selector2 = []
+    for res in residues2:
+        for atom in res.atoms():
+            atoms_selector2.append(np.array(atom.xyz()))
+
+    d_table = np.zeros((len(atoms_selector1), len(atoms_selector2)))
+    for (i, atom_i) in enumerate(atoms_selector1):
+        for (j, atom_j) in enumerate(atoms_selector2):
+            d_table[i, j] = np.linalg.norm(atom_j - atom_i)
+
     return d_table
 
 
@@ -419,3 +449,107 @@ def save_pre_filter(pre_filter, filename):
         data["sel_C"]          = "auto"
         data["score_function"] = "auto"
         json.dump(data, pf_json)
+
+
+def extract_sidechain_hbonds(_hbond_set, target_residue, interacting_residues):
+    """
+    """
+    
+    if type(interacting_residues) == int:
+        interacting_residues = [interacting_residues]
+
+    sidechain_hbonds = []
+    for h in _hbond_set:
+        opA = (h.don_res() == target_residue and \
+                h.acc_res() in interacting_residues)
+        opB = (h.acc_res() == target_residue and \
+                h.don_res() in interacting_residues)
+        if not (opA or opB):
+            continue
+        if not (h.don_hatm_is_protein_backbone() or \
+                h.acc_atm_is_protein_backbone()):
+            sidechain_hbonds.append(h)
+
+    return sidechain_hbonds
+
+
+def measure_hbonds_number(pose, target_residue, interacting_residues,
+    score_function = "auto", verbose = False):
+    """
+    """
+
+    assert type(score_function) == ScoreFunction or score_function == "auto", \
+        "'score_function' shound be a ScoreFunction instance or set to 'auto'"
+
+    if score_function == "auto":
+        score_function = get_fa_scorefxn()
+
+    if type(interacting_residues) == int:
+        interacting_residues = [interacting_residues]
+
+    try:
+        hbond_set = HBondSet()
+    except:
+        from pyrosetta.rosetta.core.scoring.hbonds import \
+            HBondSet, fill_hbond_set
+        hbond_set = HBondSet()
+    score_function(pose)
+    pose.update_residue_neighbors()
+    fill_hbond_set(pose, False, hbond_set)
+    target_residue_hbonds = hbond_set.residue_hbonds(target_residue)
+    target_residue_hbonds = extract_sidechain_hbonds(
+        target_residue_hbonds,
+        target_residue,
+        interacting_residues)
+    energy                = sum([h.energy() for h in target_residue_hbonds])
+
+    if verbose:
+        for hbond in target_residue_hbonds:
+            print(hbond)
+
+    return (len(target_residue_hbonds), energy)
+
+
+def measure_affinity(pose, target_residue, interacting_residues,
+    score_function = "auto"):
+    """
+    """
+
+    assert type(target_residue) == int, \
+        "'target_residue' should be an int with the residue ID"
+        
+    if score_function == "auto":
+        score_function = get_fa_scorefxn()
+    if type(interacting_residues) == int:
+        interacting_residues = [interacting_residues]
+
+    hbonds_number, hbonds_energy = measure_hbonds_number(
+        pose,
+        target_residue,
+        interacting_residues)
+
+    target    = ResidueIndexSelector(str(target_residue))
+    interface = ResidueIndexSelector(ID2Rank(pose, interacting_residues))
+    try:
+        interaction_energy_metric = InteractionEnergyMetric(target, interface)
+    except:
+        from pyrosetta.rosetta.core.simple_metrics.metrics import \
+    InteractionEnergyMetric
+        interaction_energy_metric = InteractionEnergyMetric(target, interface)
+
+    results                  = {}
+    results["total_energy"]  = score_function(pose)
+    results["hbonds_number"] = hbonds_number
+    results["hbonds_energy"] = hbonds_energy
+    results["inter_energy"]  = interaction_energy_metric.calculate(pose)
+
+    return results
+
+
+def print_chis(pose, seqpos):
+    """
+    """
+
+    print(seqpos, ":")
+    for chi in range(1, pose.residue(seqpos).nchi() + 1):
+        print(" ", pose.chi(chi, seqpos))
