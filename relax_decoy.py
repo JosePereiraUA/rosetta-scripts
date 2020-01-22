@@ -164,8 +164,6 @@ def get_relaxer_mover(pose, score_function = DEFAULT.score_function,
         coordinates_constraint = CoordinateConstraintGenerator()
         constraints = AddConstraints()
         constraints.add_generator(coordinates_constraint)
-        print(constraints)
-        print(pose)
         constraints.apply(pose)
         activate_constraints(score_function, c_weight)
     task_factory = standard_task_factory()

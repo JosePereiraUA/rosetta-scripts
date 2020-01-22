@@ -90,7 +90,7 @@ def design(pose, score_function = DEFAULT.score_function,
     blocked_region = DEFAULT.blocked_region, n_cycles = DEFAULT.n_cycles,
     sele_file = DEFAULT.sele_file):
 
-    designer = get_designer_mover(pose, score_function, designable, repackable,
+    designer = get_designer_mover(score_function, designable, repackable,
         cutoff, ligand_chain, blocked_region)
 
     # Print the designed region to a file, if sele_file is defined and the file
@@ -164,8 +164,6 @@ def get_designer_mover(score_function = DEFAULT.score_function,
         try:
             score_function = get_fa_scorefxn()
         except:
-            import pyrosetta
-            init()
             score_function = get_fa_scorefxn()
     else:
         from pyrosetta.rosetta.core.scoring import ScoreFunction
