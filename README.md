@@ -29,8 +29,8 @@ The PASSO protocol intends to simultaneously optimize both the position of part 
 This protocol expects an **"ABC Model"**, where the target protein is divided in 3 different chains on the input PDB file:
 
 1. Chain A - Fixed part of the protein
-2. Chain B - Fixed part of the protein + target ligand. Will be used to define the designable region of the protein.
-3. Chain C - Movable part of the protein
+2. Chain B - Movable part of the protein
+3. Chain C - Target ligand (fixed). Will be used to define the designable region of the protein.
 
 See the `single_dock_decoy.py` script docstring for more information on how to set up ABC models using the
 `ze_util/molecule_manipulation.py` tools.
@@ -42,7 +42,7 @@ See the `single_dock_decoy.py` script docstring for more information on how to s
 2. Evaluation of a pre filter (See the PreFilter class docstring on `ze_utils/pyrosetta_classes.py`
 for more detailed information);
 3. *If the newly proposed structure passes the pre filter on step 2* design the interface residues
-(Uses the design protocol from the `design.py` script);
+(Uses the design protocol from the `design.py` script by default, see `hb_design.py` script for alternatives);
 
 **Reporter files:** A total of 3 files will be created when running this protocol, in addition to structural PDBs:
 
@@ -66,38 +66,43 @@ the `multi_dock.py` script, individual slurm bash scripts are automatically crea
 release of new decoys is controlled by a check step that verifies that there is enough space on the user queue
 (limited to a set number of queued jobs - 500 by default).
 
-## 4. ANALYZE (analyze.py)
+## 4. LOOP (loop.py)
+**Performs loop closure with automatic design of the loop aminoacids.**
+
+The loop to add can be obtained from an existing loop (from another pose), or generated from a string. Furthermore, existing loops can be extended with additional residues at the C/N terminal. The initial conformation for the loop closure can be set as the original, helix, beta sheet or straight conformation.
+
+## 5. ANALYZE (analyze.py)
 **Analizes a single PDB file and outputs revelant intra-pose metrics.**
 
 1. Total energy
 2. Individual residues energy per selection
 3. Interaction energy metric (If a ligand is present)
-4. Solvent Acessible Surface Area (SASA) Metric
-5. Hydrogen bonding network energy
+4. Hydrogen bonding network energy
 
-**NOTE: This script is still under development.**
-
-## 5. ALIGN and MULTI_ALIGN (align.py and multi_align.py)
+## 6. ALIGN, ALIGN_PYROSETTA and MULTI_ALIGN (align.py, align_pyrosetta.py and multi_align.py)
 **`align.py` script allows the alignment and RMSD calculation of two PDB files, while `multi_align.py` applies the same
-protocol to all the 1 on 1 combinations for all the PDB files in the current working directory.**
+protocol to all the 1 on 1 combinations for all the PDB files in the current working directory. `align_pyrosetta.py` offers the same functionalities without leaving the pyrosetta framework.**
 
 Optinally, a subset of atoms can be dined by atom name (such as CA only, for example). 
 Makes use of `ze_util/molecule_manipulation.py` tools.
 
-## 6. GET BEST STRUCTURES FROM FASC FILES (get_best.py)
+## 7. GET BEST STRUCTURES FROM FASC FILES (get_best.py)
 **Reads a .fasc file and prints the best structures.**
 
 By default, uses 'total_score' parameter for structure comparison, and prints the n structures (5 by default) with the
 **lowest** values for the parameter. If the reverse flag is set to True, print the n structures with the **highest**
 values instead.
 
-## 7. STATUS (status.py)
+## 8. CONVERGENCE_FUNNEL (convergence_funnel.py)
+**Reads a .fasc file and plot the RMSD variance towards the lowest energy structure vs the energy variance.**
+
+## 9. STATUS (status.py)
 **Used to verify the current status of a `multi_dock.py` script running.**
 
 By default prints the completion percentage of each docking grid point and the n structures (5, by default) with the *lowest*
 'total_score' parameter. If used in a SLURM environment, print the current percentage of rescources being used by the user.
 
-## 8. BLOSUM62 and MULTI_BLOSUM62 (blosum62.py and multi_blosum62.py)
+## 10. BLOSUM62 and MULTI_BLOSUM62 (blosum62.py and multi_blosum62.py)
 **`blosum62.py` script performs the calculation of BLOSUM62 score and sequence
 conservation percentage between two sequences, while `multi_blosum62.py`
 performs the same task but between all .pdb or .gro files indentifies in the
@@ -110,3 +115,9 @@ ordered based on either the blossum62 score or the sequence conservation
 percentage (using the `-s` flag, choose between `blosum62` or `conserved`). The
 results can also be displayed is reverse order (lower values first) by using
 the `-r` flag.
+
+
+## 11. STABILITY (stability.py)
+**`stability.py` script performs a relaxation protocol, without constraints, followed by RMSD calculation.**
+
+The objective is to measure the stability of the current conformation, if allowed to relax without constraints. Lower RMSD values infer higher stability.
