@@ -705,6 +705,10 @@ class Fragment:
 
 class Rotamer:
     """
+    Contains all the information relative to a single Rotamer:
+     . Name   : The name of the residue type, in 3 letter nomenclature;
+     . Weight : The natural probability of occurrence;
+     . Chis   : List of all chi values for this residue type.
     """
 
     def __init__(self, name, weight, chis):
@@ -715,6 +719,9 @@ class Rotamer:
 
     def apply(self, pose, seqpos):
         """
+        Apply this rotamer to the given 'pose' at position 'seqpos'. If the
+        current residue at this position is of a different aminoacid, mutate it
+        to the new aminoacid.
         """
 
         # Mutate to the correct residue type, if necessary
@@ -734,17 +741,21 @@ class Rotamer:
 
 class RotamerLibrary:
     """
+    Holds information about all possible rotamers for each aminoacid at all bin
+    values for both psi and phi backbone angles. 
     """
 
     def __init__(self, filename = None):
-        self.data = {}
         if filename:
             self.load(filename)
 
     def load(self, filename, verbose = True):
         """
+        Load a new RotamerLibrary from a file 'filename'. If 'verbose' is set to
+        True, display current completion status on a progress bar.
         """
 
+        self.data = {}
         count = 0
         if verbose:
             print(" Loading rotamer library:")
@@ -796,6 +807,10 @@ class RotamerLibrary:
 
     def get_rotamer_list(self, residue_type, phi, psi, max_length = 5):
         """
+        From the full RotamerLibrary, obtain a list of rotamers of the given
+        'residue_type', at angles 'phi' and 'psi'. This list should contain the
+        first N residues with the highest natural probability of occurrence
+        (where N is given by 'max_length').
         """
 
         assert max_length == None or max_length >= 1, \
@@ -818,6 +833,11 @@ class RotamerLibrary:
     
     def get_rotamer_list_at_pos(self, pose, seqpos, max_length = 5):
         """
+        From the full RotamerLibrary, obtain a list of rotamers of the given
+        residue_type, phi and psi angles same as the residue in position
+        'seqpos' in 'pose'. This list should contain the first N residues with
+        the highest natural probability of occurrence (where N is given by
+        'max_length').
         """
 
         residue_type = pose.residue(seqpos).name3()
@@ -829,9 +849,23 @@ class RotamerLibrary:
 
 class RotamerCycler:
     """
+    Performs the cycling protocol between rotamers in a list of 1 or more
+    residues. The rotamers are obtained from 'rotlib', see RotamerLibrary class
+    for more information. These rotamers are backbone dependent, therefore, phi
+    and psi angles are extracted from the given 'pose' at the defined 'seqpos'.
+    This angles are rounded down in order to fall into a single bin of 'rotlib'.
+    If 'seqpos' is an array with multiple positions, enumeration of the rotamers
+    is performed sequentially (i.e. All rotamers of the last position are
+    attempted before changing the second to last position to the next rotamer,
+    etc). The list of rotamers attemped is comprised of the first N rotamers
+    with the hightest natural probability of occurrence (N is defined as
+    'max_length'). Therefore the maximum number of iterations done by a single
+    RotamerCycler is N^M, where M is the number of residues explored (given as
+    the length of 'seqpos'). If a 'aa_list' is given, only aminoacids defined in
+    that list are considered for the RotamerCycler (in 3 letter nomenclature).
     """
 
-    def __init__(self, rotlib, pose, seqpos, max_length = 5):
+    def __init__(self, rotlib, pose, seqpos, max_length = 5, aa_list = None):
 
         assert type(pose) == Pose, "'pose' should be of type Pose"
         assert max_length == None or max_length >= 1, \
@@ -839,8 +873,10 @@ class RotamerCycler:
         assert type(rotlib) == RotamerLibrary, \
             "'rotlib' should be an instance of RotamerLibrary"
 
-        hb_forming_aas = ["ARG", "ASN", "ASP", "GLN", "GLU", "HIS",
-                          "LYS", "SER", "THR", "TRP", "TYR"]
+        if aa_list == None:
+            aa_list = ["ALA", "ARG", "ASN", "ASP", "CYS", "GLU", "GLY", "HIS",
+                       "ILE", "LEU", "LYS", "MET", "PHE", "PRO", "SER", "THR",
+                       "TRP", "TYR", "VAL", "GLN"]
 
         self.pose = pose
         if type(seqpos) == int:
@@ -854,7 +890,7 @@ class RotamerCycler:
             self.rot_lists.append([])
             phi = round(pose.phi(pos), -1)
             psi = round(pose.psi(pos), -1)
-            for aa in hb_forming_aas:
+            for aa in aa_list:
                 rot_list = rotlib.get_rotamer_list(aa, phi, psi, max_length)
                 self.rot_lists[index] += rot_list
             self.counters.append(0)
@@ -863,6 +899,9 @@ class RotamerCycler:
 
     def counters_plus_one(self, pos):
         """
+        Move the RotamerCycler counters to the next value. Returns True if
+        successful, otherwise, return False if the current counters have reached
+        the maximum iteration.
         """
 
         query = self.counters[pos] + 1
@@ -870,7 +909,7 @@ class RotamerCycler:
             if pos == 0:
                 return False
             else:
-                if not self.counters_plus_one   (pos - 1):
+                if not self.counters_plus_one(pos - 1):
                     return False
                 self.counters[pos] = 0
         else:
@@ -881,6 +920,7 @@ class RotamerCycler:
 
     def apply(self, counters):
         """
+        Apply the given 'counters'.
         """
 
         for (index, counter) in enumerate(counters):
@@ -890,6 +930,8 @@ class RotamerCycler:
     
     def restrict_to_repack(self, rot_list_index):
         """
+        Remove all rotamers at the given 'rot_list_index' that are not of the
+        same aminoacid as the current aminoacid.
         """
 
         # Mark rotamers not of this type to be removed
@@ -908,6 +950,8 @@ class RotamerCycler:
 
     def cycle_all(self, pmm = None):
         """
+        Go through all rotamers in the RotamerCycler. If a PyMOLMover object is
+        defined in 'pmm', apply each pose to PyMOL.
         """
         while not done:
             done = not self.next()
@@ -917,6 +961,8 @@ class RotamerCycler:
 
     def next(self):
         """
+        Cycle the RotamerCycler to the next possible rotamer. Returns True if
+        successful, otherwise retirn False if all rotamers have been explored.
         """
 
         # Increase counters
@@ -930,6 +976,45 @@ class RotamerCycler:
 
 class DesignHydrogenBondMover:
     """
+    Performs a design protocol with a rotamer enumeration pre-step.
+    The closest residue to a defined 'target_residue', inside a given
+    'designable' region, is used as a starting point for the enumeration of all
+    rotamers of all hydrogen bond forming aminoacids (11 in total). Based on the
+    backbone phi and psi angles, the N rotamers with the highest natural
+    probability of occurrence are selected for the enumeration. (N is defined by
+    'max_length', the rotamers are obtained from 'rotlib', see RotamerLibrary
+    class for more information). This rotamer list is to be enumerated for each
+    possible rotamer of the 'target_residue', up to a maximum of N most probable
+    residues, therefore bringing the total number of iterations to N^2 * 11. If
+    no 'designable' region is given, the protocol assumes the ABC model, where
+    the 'designable' region will be defined as all the neighbouring residues of
+    chain C belonging to chain B. For each conformation enumerated, the number
+    of hydrogen bonds is calculated, as identified by a HBondSet. If no hydrogen
+    bonds are identified, the confromation is discarded and the loop continues.
+    If 'skip_target_interface_clashes' flag is set to True, a second pre-filter
+    is applied, discarding conformations with clashing sidechains between the
+    target residue and the closest residue to the target residue. If no 
+    Viable
+    conformations are evaluated based on:
+     . Total energy value
+     . Number of hydrogens bonds
+     . Hydrogen bonds energy
+     . Interaction energy metric
+    This results are saved. When the enumeration completes, the best
+    conformation is selected and recovered based on 2 parameters:
+     1. Highest number of hydrogens bonds identified;
+     2. If two or more conformations share the maximum number of hydrogen bonds
+        identified, select the one with the lowest hydrogen bond energy;
+    This conformation is then locked in place by removing the closest residue
+    from the 'designable' selection. Given the 'repackable' selection and the
+    'design_mover', the actual design protocol is then started using the current
+    conformation as a "seed" to the Monte Carlo simulation. The 'repackable'
+    region should NOT include the 'target_residue'. If no 'repackable' region is
+    provided, the protocol assumes the ABC model, where the 'repackable' region
+    is defined as the residues of chain C, without the 'target_residue'.
+    This design effort is repeated 'n_cycles' times. All scoring is performed
+    with the provided 'score_function', which is, by default, obtained with the
+    get_fa_scorefxn() function.
     """
 
     def __init__(self, target_residue, rotlib, max_length = None, n_cycles = 4,
@@ -946,12 +1031,12 @@ class DesignHydrogenBondMover:
         self.n_cycles                      = n_cycles
         self.design_mover                  = design_mover
         self.skip_target_interface_clashes = skip_target_interface_clashes
+        self.hb_forming_aas                = ["ARG", "ASN", "ASP", "GLN", "GLU",
+                                              "HIS", "LYS", "SER", "THR", "TRP",
+                                              "TYR"]
 
-        # --- CLOSEST RESIDUES
+        # --- TARGET RESIDUE
         self.target_residue_select = ResidueIndexSelector(target_residue)
-        # self.neighbours = AndResidueSelector(
-        #     NeighborhoodResidueSelector(self.target_residue_select, 9.0, False),
-        #     ChainSelector("B"))
     
         # --- DESIGNABLE REGION
         assert isinstance(designable, ResidueSelector) or designable == "auto",\
@@ -990,6 +1075,9 @@ class DesignHydrogenBondMover:
 
     def apply(self, pose, verbose = True):
         """
+        Apply the DesignHydrogenBondMover to a 'pose'. If 'verbose' is set to
+        True, show the current completion status of the enumeration in a
+        progress bar.
         """
 
         # Find closest residues list (ordered)
@@ -1049,7 +1137,7 @@ class DesignHydrogenBondMover:
             # Create the RotamerCycler object
             target_aas     = [self.target_residue, closest_residue]
             rotamer_cycler = RotamerCycler(self.rotlib, pose, target_aas,
-                self.max_length)
+                self.max_length, self.hb_forming_aas)
             rotamer_cycler.restrict_to_repack(0)
 
             try:
