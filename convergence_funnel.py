@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 import argparse
 import matplotlib.ticker as ticker
 from matplotlib import pyplot as plt

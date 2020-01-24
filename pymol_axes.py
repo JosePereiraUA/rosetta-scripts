@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 from pymol.cgo import *
 from pymol import cmd
 

@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 from os.path import expanduser as expusr
 
 #

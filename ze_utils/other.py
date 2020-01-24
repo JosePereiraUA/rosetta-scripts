@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 def identify_loops(pose):
     """
     Returns a list of loops, where each loop is a list of residue indexes.

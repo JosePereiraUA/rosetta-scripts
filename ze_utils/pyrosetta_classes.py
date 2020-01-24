@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 from pyrosetta import *
 init()
 
@@ -753,6 +755,9 @@ class RotamerLibrary:
         """
         Load a new RotamerLibrary from a file 'filename'. If 'verbose' is set to
         True, display current completion status on a progress bar.
+        Example:
+        ~/anaconda3/pkgs/pyrosetta-2019.42+release.3666509-py37_0/lib/python3.7/
+        site-packages/pyrosetta/database/rotamer
         """
 
         self.data = {}

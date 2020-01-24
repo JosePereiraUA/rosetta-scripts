@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 import os
 import re
 import collections

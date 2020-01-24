@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 from pymol import cmd
 
 def get_sequence(query_object, verbose = True):

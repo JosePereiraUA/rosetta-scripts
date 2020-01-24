@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 import argparse
 from pyrosetta import *
 from pyrosetta.rosetta.protocols.relax import FastRelax

@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 import argparse
 from relax_decoy import relax
 from pyrosetta import *
@@ -21,7 +23,7 @@ from pyrosetta.rosetta.core.select.residue_selector import \
 #  Performs loop closure (using KIC protocol) with automatic design of the loop
 # aminoacids using the LoopModeler mover. The loop to add can be obtained from
 # an existing loop (from another pose), or generated from a string. Furthermore,
-# existing loops can be extended with additional residues at the C terminal.
+# existing loops can be extended with additional residues at the C/N terminal.
 #  This script assumes the ABC model, so the loop will be added between the end
 # of chain A and the beginning of chain B. Read the dosctrings and documentation
 # of the single_dock_decoy.py script for more information on how to set up this

@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 from pyrosetta import *
 from pyrosetta.rosetta.protocols.moves import *
 from pyrosetta.rosetta.std import map_int_int

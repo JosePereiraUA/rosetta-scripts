@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 import numpy as np
 from pyrosetta import *
 from operator import mul
@@ -74,21 +76,30 @@ from design_decoy import get_designer_mover
 # . MoveStatus.FAILT_DO_NOT_RETRY if no additional rotamers are available.
 # Ex: next_rotamer = TryRotamers("10", score_function, 4, 0, False, False, True)
 
-init()
+if __name__ == "__main__":
 
-pmm   = PyMOLMover()
-pmm.keep_history(True)
-pose   = pose_from_pdb("relax_570.pdb")
-pmm.apply(pose)
-rotlib = RotamerLibrary("rotlib.dat")
-des    = AndResidueSelector(
-            NeighborhoodResidueSelector(
-                ResidueIndexSelector("201"), 9.0, False), 
-            NotResidueSelector(
-                OrResidueSelector(
-                    ResidueIndexSelector("1-100"),
-                    ChainSelector("B"))))
-print(get_pymol_selection_from_selector(des, pose))
-test   = DesignHydrogenBondMover(201, rotlib, 10, designable = des)
-pose   = test.apply(pose)
-pmm.apply(pose)
+    init()
+
+    pmm   = PyMOLMover()
+    pmm.keep_history(True)
+    pose   = pose_from_pdb("relax_570.pdb")
+    pmm.apply(pose)
+    rotlib = RotamerLibrary("~/Desktop/script/static/rotlib.dat")
+    des    = AndResidueSelector(
+                NeighborhoodResidueSelector(
+                    ResidueIndexSelector("201"), 9.0, False), 
+                NotResidueSelector(
+                    OrResidueSelector(
+                        ResidueIndexSelector("1-100"),
+                        ChainSelector("B"))))
+    print(get_pymol_selection_from_selector(des, pose))
+    test   = DesignHydrogenBondMover(201, rotlib, 10, designable = des)
+    pose   = test.apply(pose)
+    pmm.apply(pose)
+
+def get_designer_mover(target_aa, max_length = 5, n_cycles = 4, rl = "auto"):
+    if rl == "auto":
+        rl = os.path.join(os.path.expanduser("~"),
+            "Desktop/scripts/static/rotlib.dat")
+    rotlib = RotamerLibrary(rl)
+    return DesignHydrogenBondMover(target_aa, rotlib, max_length, n_cycles)

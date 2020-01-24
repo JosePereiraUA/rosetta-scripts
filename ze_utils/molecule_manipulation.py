@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 # TODO: Documentation
 
 # LOAD from PDB, XYZ, GRO

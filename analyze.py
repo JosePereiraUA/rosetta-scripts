@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 import argparse
 from pyrosetta import *
 from ze_utils.pyrosetta_tools import *

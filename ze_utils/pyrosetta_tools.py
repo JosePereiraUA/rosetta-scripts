@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 import json
 import numpy as np
 from pyrosetta import *

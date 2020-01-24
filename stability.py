@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 import shutil
 import argparse
 from pyrosetta import *

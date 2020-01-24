@@ -1,5 +1,6 @@
 # ROSETTA Scripts
 Some Rosetta Scripts that allow for various tasks.
+For questions or updates, e-mail jose.manuel.pereira@ua.pt
 
 ## 1. RELAX (relax.py)
 **Performs a relaxation protocol for energy minimization of a PDB structure.** 

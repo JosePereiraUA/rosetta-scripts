@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 import argparse
 from pyrosetta import *
 from design_decoy import get_designer_mover, get_designable_region

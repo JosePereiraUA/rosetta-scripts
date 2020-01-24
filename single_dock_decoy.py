@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 import json
 import argparse
 from pyrosetta import *
@@ -86,8 +88,8 @@ def single_dock_decoy(input_file, output_prefix, n_steps, docker = "auto"):
     """
     Launch a new PASSO protocol from the 'input_file' pose (must be a PDB file).
     All output files from the PASSO protocol will have the 'output_prefix'. The
-    protocol will run for 'n_steps', using the given 'pre_filter' (when set to
-    "auto" will use the default filter).
+    protocol will run for 'n_steps', using the given 'docker' (when set to
+    "auto" will use the default PASSO protocol).
     """
 
     assert input_file[-4:] == ".pdb", \
@@ -145,5 +147,7 @@ if __name__ == "__main__":
     pre_filter = load_pre_filter(args.pre_filter)
     # Ex. pre_filter.contact_min_count = 6
     
-    docker = PASSO(args.n_steps, pre_filter = pre_filter)
+    from hb_design import get_designer_mover
+    test = get_designer_mover(192, 10, 1, "../rotlib.dat")
+    docker = PASSO(args.n_steps, pre_filter = pre_filter, design_mover = test)
     single_dock_decoy(args.input_file, args.output, args.n_steps, docker)

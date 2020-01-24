@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 #           \\ SCRIPT INITIALLY CREATED BY JOSE PEREIRA, 2019 \\
 
 #  The objetive of this script is to provide a way for structure alignment

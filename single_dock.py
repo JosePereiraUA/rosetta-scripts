@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 import argparse
 from pyrosetta import *
 from ze_utils.pyrosetta_classes import PASSO, PreFilter
@@ -108,7 +110,7 @@ def deploy_decoys_on_slurm(input_file, output_prefix, n_decoys, n_steps,
             
 
 def deploy_decoys_on_pyjobdistributor(input_file, output_prefix, n_decoys,
-    n_steps, score_function, pre_filter = "auto"):
+    n_steps, score_function, pre_filter = "auto", design_mover = "auto"):
     """
     Launch the PASSO protocol decoys in serial mode, using the PyJobDistributor.
     Each decoy will occupy one processor on the machine, and a new decoy will be
@@ -119,7 +121,7 @@ def deploy_decoys_on_pyjobdistributor(input_file, output_prefix, n_decoys,
     while not job_man.job_complete:
         output_name = "%s_%d" % (output_prefix, job_man.current_id)
         docker = PASSO(n_steps, pre_filter = pre_filter,
-            score_function = score_function)
+            score_function = score_function, design_mover = design_mover)
         p = single_dock_decoy(input_file, output_name, n_steps, docker)
 
         # this is the last frame of the simulation. Since the PASSO protocol is

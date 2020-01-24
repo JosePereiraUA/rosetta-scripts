@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 import os
 import glob
 import shutil
@@ -188,12 +190,15 @@ if __name__ == "__main__":
                 args.n_steps,
                 pre_filter)
         else:
+            from hb_design import get_designer_mover
+            design_mover = get_designer_mover(192, 10, 1)
             deploy_decoys_on_pyjobdistributor(
                 "start_%d.pdb" % (point_id),
                 "%d" % (point_id),
                 args.n_decoys,
                 args.n_steps,
                 score_function,
-                pre_filter)
+                pre_filter,
+                design_mover)
 
         os.chdir(current_work_directory)

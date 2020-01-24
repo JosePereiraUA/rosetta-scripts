@@ -1,3 +1,5 @@
+# Questions: jose.manuel.pereira@ua.pt
+
 import json
 import argparse
 from sys import argv

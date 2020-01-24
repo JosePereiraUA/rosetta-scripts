@@ -1,3 +1,4 @@
+# Questions: jose.manuel.pereira@ua.pt
 #
 #                         A L G E B R A                
 #
